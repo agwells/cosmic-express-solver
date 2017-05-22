@@ -44,7 +44,12 @@ var map = {
     width: 0,
     numberOfCars: 2, // TODO: if I want this to work on other maps, make this more flexible
     specialCells: [],
-    startingPos: "0,0"
+    startingPos: [0,0],
+    warps: [], // TODO: support for more than one pair of warps
+    rawmap: "",
+    getCharAt: function(x, y) {
+        return this.rawmap.charAt(x + (y * (this.width + 1)));
+    },
 };
 
 if (process.argv.length < 3) {
@@ -53,11 +58,11 @@ if (process.argv.length < 3) {
 }
 
 var mapfile = process.argv[2];
-const rawmap = fs.readFileSync(mapfile, "UTF-8");
+map.rawmap = fs.readFileSync(mapfile, "UTF-8");
 
 // Find out the size of the map
 {
-    let lines = rawmap.split("\n");
+    let lines = map.rawmap.split("\n");
     map.height = lines.length;
     map.width = lines[0].length;
     // Validate that the map is properly rectangular
@@ -71,7 +76,7 @@ const rawmap = fs.readFileSync(mapfile, "UTF-8");
 var screen = blessed.screen({
 });
 var box = blessed.box({
-    content: rawmap
+    content: map.rawmap
 });
 screen.append(box);
 box.focus();
@@ -84,29 +89,14 @@ screen.render();
 //sleep.sleep(5);
 
 class Cell {
-    constructor(pos) {
-        var x, y;
-        if (Array.isArray(pos)) {
-            [x, y] = pos;
-        } else if (arguments.length == 1) {
-            [x, y] = pos.split(',');
-            x = parseInt(x);
-            y = parseInt(y);
-        }
-
+    constructor(x, y) {
         this.x = x;
         this.y = y;
-
-        if (Cell.cellcache.has(this.toStringObj())){
-            return Cell.cellcache.get(this.toStringObj());
-        }
-
         if (x < 0 || x >= map.width || y < 0 || y >= map.height ) {
             this.outOfBounds = true;
         } else {
             this.outOfBounds = false;
         }
-        Cell.cellcache.set(this.toStringObj(), this);
     }
 
     /**
@@ -119,7 +109,24 @@ class Cell {
      * @memberof Cell
      */
     static at(pos) {
-        return new Cell(pos);
+        var x, y, posStr;
+        if (Array.isArray(pos)) {
+            [x, y] = pos;
+            posStr = new String(`${x},${y}`);
+        } else if (arguments.length == 1) {
+            [x, y] = pos.split(',');
+            x = parseInt(x);
+            y = parseInt(y);
+            posStr = new String(pos);
+        }
+
+        if (Cell.cellcache.has(posStr)){
+            return Cell.cellcache.get(posStr);
+        } else {
+            var c = new Cell(x, y);
+            Cell.cellcache.set(posStr, c);
+            return c;
+        }
     }
 
     /**
@@ -133,7 +140,7 @@ class Cell {
         if (this.outOfBounds) {
             return false;
         }
-        return rawmap.charAt(this.x + (this.y * (map.width + 1)));
+        return map.getCharAt(this.x, this.y);
     }
 
     toString() {
@@ -145,12 +152,31 @@ class Cell {
     }
 
     getNextCell(facing) {
-        return Cell.at(
+        var nextCell = Cell.at(
             [
                 this.x + parseInt(facing[0]), 
                 this.y + parseInt(facing[1])
             ]
         );
+        switch (nextCell.getContent()) {
+            case CELLTYPE.CROSSING:
+                // If it's a crossing, we basically skip it over and look
+                // at the next cell past it
+                return nextCell.getNextCell(facing);
+            case CELLTYPE.WARP:
+                // If it's a warp, we look at the cell next to the other warp.
+                // So find the other warp in map.warps.
+                // @todo: support for more than one pair of warps
+                let destWarp;
+                if (map.warps[0] === this) {
+                    destWarp = map.warps[1];
+                } else {
+                    destWarp = map.warps[0];
+                }
+                return destWarp.getNextCell(facing);
+            default:
+                return nextCell;
+        }
     }
 
     isOutOfBounds() {
@@ -211,6 +237,13 @@ class Step {
         // @todo
     }
 
+    isDeadEnd() {
+        return !(
+            this.availableDirections.length > 0
+            && this.areAllVitalCellsReachable()
+        );
+    }
+
     isWin() {
         // TODO: aliens
         return this.cell.getContent() === CELLTYPE.EXIT;
@@ -220,18 +253,33 @@ class Step {
         var i = Step.filledCells.indexOf(this.cell.toString());
         Step.filledCells.splice(i, 1);
     }
+
+    areAllVitalCellsReachable() {
+        // Make sure every special cell has at least one reachable cell
+        return map.specialCells.every(function(pos) {
+            var specialCell = Cell.at(pos);
+            // Only one adjacent cell needs to be reachable
+            return FACINGS.some(
+                function(facing){
+                    var c = specialCell.getNextCell(facing);
+                    // TODO: eliminate this duplicate code (from line 228)
+                    return c.isNavigable() && !Step.filledCells.includes(c.toString());
+                }
+            )
+        });
+    }
 }
 // A list of filled cells in the latest step (represented as strings)
 // This is a performance optimization, so I don't have to loop through
 // all the steps
 Step.filledCells = [];
 
-// Locate cells that must be reached in a winning solution
+// Locate special cells
 {
     for (let x = 0; x < map.width; x++) {
         for (let y = 0; y < map.height; y++) {
-            let pos = `${x},${y}`;
-            switch( Cell.at(pos).getContent() ) {
+            let pos = [x,y];
+            switch( map.getCharAt(x, y) ) {
                 case CELLTYPE.EXIT:
                 case CELLTYPE.GREEN_ALIEN:
                 case CELLTYPE.ORANGE_ALIEN:
@@ -245,6 +293,9 @@ Step.filledCells = [];
                 case CELLTYPE.START:
                     map.startingPos = pos;
                     break;
+                case CELLTYPE.WARP:
+                    map.warps.push(Cell.at(pos));
+                    break;
             }
         }
     }
@@ -256,13 +307,13 @@ var steps = [
     new Step(map.startingPos)
 ];
 
-var route = new String(rawmap);
+var route = new String(map.rawmap);
 var curStep = steps[0];
 var i = 0;
 var lastRender = os.uptime();
 function eachStep() {
 //    console.log(`At cell ${curStep.cell.toString()}`);
-    if (curStep.availableDirections.length > 0) {
+    if (!curStep.isDeadEnd()) {
         // Step in the first direction.
         // Remove that direction from the list of available directions so we
         // don't have to try it again.
