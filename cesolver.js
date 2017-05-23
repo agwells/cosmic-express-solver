@@ -74,16 +74,51 @@ map.rawmap = fs.readFileSync(mapfile, "UTF-8");
 }
 
 var screen = blessed.screen({
+//    "autoPadding": true
 });
-var box = blessed.box({
-    content: map.rawmap
+var mapDisplay = blessed.box({
+    content: map.rawmap,
+    height: map.height + 2,
+    width: map.width + 2,
+    border: {
+        type: 'line'
+    }
 });
-screen.append(box);
-box.focus();
+screen.append(mapDisplay);
+var statusBox = blessed.text({
+    top: mapDisplay.height,
+    'content': "Press SPACE to start.\nPress . to step."
+});
+screen.append(statusBox);
+
 // Quit on Escape, q, or Control-C. 
 screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
 });
+
+var isGamePaused = true;
+screen.key(['p', 'space'], function(ch, key) {
+    if (isGamePaused) {
+        statusBox.setContent(
+            "Press SPACE to pause."
+        );
+        isGamePaused = false;
+        timers.setImmediate(eachStep);
+    } else {
+        statusBox.setContent(
+            "Press SPACE to start.\nPress . to step."
+        );
+        isGamePaused = true;
+    }
+});
+
+screen.key(['.'], function(ch, key) {
+    if (isGamePaused) {
+        screen.render();
+        timers.setImmediate(eachStep);
+    }
+});
+
 screen.render();
 // Create a screen object. 
 //sleep.sleep(5);
@@ -256,17 +291,26 @@ class Step {
 
     areAllVitalCellsReachable() {
         // Make sure every special cell has at least one reachable cell
-        return map.specialCells.every(function(pos) {
+        var a = map.specialCells.every(pos => {
             var specialCell = Cell.at(pos);
             // Only one adjacent cell needs to be reachable
-            return FACINGS.some(
-                function(facing){
+            var b = FACINGS.some(
+                facing => {
                     var c = specialCell.getNextCell(facing);
                     // TODO: eliminate this duplicate code (from line 228)
-                    return c.isNavigable() && !Step.filledCells.includes(c.toString());
+                    var d = (
+                        c.isNavigable() 
+                        && (
+                            (c.x == this.cell.x && c.y == this.cell.y)
+                            || !Step.filledCells.includes(c.toString())
+                        )
+                    );
+                    return d;
                 }
-            )
+            );
+            return b;
         });
+        return a;
     }
 }
 // A list of filled cells in the latest step (represented as strings)
@@ -351,23 +395,30 @@ function eachStep() {
         let stringIdx = curStep.cell.x + ((map.width + 1) * curStep.cell.y);
         route = route.slice(0, stringIdx) + curStep.cell.getContent() + route.slice(stringIdx + 1);
         if (steps.length == 0) {
-            console.error("Error: no more steps available. Unsolveable level?");
-            process.exit(2);
+            statusBox.setContent("Error: no more steps available. Unsolveable level?");
+            screen.render();
+            // console.error("Console Error: no more steps available. Unsolveable level?");
+            return;
         }
         curStep = steps[steps.length-1];
 //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
     }
     if (true || os.uptime() > lastRender) {
         lastRender = os.uptime();
-        box.setContent(route.valueOf());
+        mapDisplay.setContent(route.valueOf());
         screen.render();
     }
 
     if (!curStep.isWin()) {
-        timers.setImmediate(eachStep, 1);
+        if (isGamePaused) {
+            return;
+        } else {
+            timers.setImmediate(eachStep);
+        }
     } else {
-        console.log(steps);
+        statusBox.setContent("Solved!");
+        screen.render();
     }
 }
 
-timers.setImmediate(eachStep);
+//timers.setImmediate(eachStep);
