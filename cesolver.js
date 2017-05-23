@@ -89,11 +89,18 @@ var mapDisplay = blessed.box({
     }
 });
 screen.append(mapDisplay);
+// A text box to put status messages in
 var statusBox = blessed.text({
     top: mapDisplay.height,
-    'content': "Press SPACE to start.\nPress . to step."
+    height: 1,
+    content: "READY"
 });
 screen.append(statusBox);
+var instructionBox = blessed.text({
+    top: (+mapDisplay.height) + (+statusBox.height),
+    content: "Press SPACE to start.\nPress . to step."
+});
+screen.append(instructionBox);
 
 // Quit on Escape, q, or Control-C. 
 screen.key(['escape', 'q', 'C-c'], function(ch, key) {
@@ -103,15 +110,17 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 var isGamePaused = true;
 screen.key(['p', 'space'], function(ch, key) {
     if (isGamePaused) {
-        statusBox.setContent(
+        instructionBox.setContent(
             "Press SPACE to pause."
         );
+        statusBox.setContent("Solving...");
         isGamePaused = false;
         timers.setImmediate(eachStep);
     } else {
-        statusBox.setContent(
+        instructionBox.setContent(
             "Press SPACE to start.\nPress . to step."
         );
+        statusBox.setContent("PAUSED");
         isGamePaused = true;
     }
 });
@@ -361,6 +370,7 @@ var lastRender = os.uptime();
 // so that it will share the event loop with blessed.
 function eachStep() {
     if (curStep.isWin()) {
+        instructionBox.setContent("Press q to exit.");
         statusBox.setContent("Solved!");
         screen.render();
         return;
@@ -370,6 +380,7 @@ function eachStep() {
         // This one is a dead-end. Back up.
         steps.pop();
         curStep.undo();
+        statusBox.setContent("Dead end! Backing up.");
         drawOnRoute(curStep.cell, curStep.cell.getContent());
         if (steps.length == 0) {
             statusBox.setContent("Error: no more steps available. Unsolveable level?");
@@ -408,6 +419,7 @@ function eachStep() {
                 arrow = '?';
         }
         drawOnRoute(curStep.cell, arrow);
+        statusBox.setContent(`Step ${steps.length}: ${curStep.cell.toString()}`);
         curStep = nextStep;
     }
 
