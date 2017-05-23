@@ -20,7 +20,7 @@ const CELLTYPE = {
     ORANGE_HOUSE: 'o',
     PURPLE_ALIEN: 'P',
     PURPLE_HOUSE: 'p',
-    WILDCARD_HOUSE: 'x'
+    WILDCARD_HOUSE: '?'
 }
 
 const NORTH = [0,-1];
@@ -59,6 +59,10 @@ if (process.argv.length < 3) {
 
 var mapfile = process.argv[2];
 map.rawmap = fs.readFileSync(mapfile, "UTF-8");
+// Ignore that annoying dangling newline vi puts in
+if (map.rawmap.slice(-1) === "\n") {
+    map.rawmap = map.rawmap.slice(0, -1);
+}
 
 // Find out the size of the map
 {
@@ -291,26 +295,23 @@ class Step {
 
     areAllVitalCellsReachable() {
         // Make sure every special cell has at least one reachable cell
-        var a = map.specialCells.every(pos => {
+        return map.specialCells.every(pos => {
             var specialCell = Cell.at(pos);
             // Only one adjacent cell needs to be reachable
-            var b = FACINGS.some(
+            return FACINGS.some(
                 facing => {
                     var c = specialCell.getNextCell(facing);
                     // TODO: eliminate this duplicate code (from line 228)
-                    var d = (
+                    return (
                         c.isNavigable() 
                         && (
                             (c.x == this.cell.x && c.y == this.cell.y)
                             || !Step.filledCells.includes(c.toString())
                         )
                     );
-                    return d;
                 }
             );
-            return b;
         });
-        return a;
     }
 }
 // A list of filled cells in the latest step (represented as strings)
@@ -355,9 +356,30 @@ var route = new String(map.rawmap);
 var curStep = steps[0];
 var i = 0;
 var lastRender = os.uptime();
+
+// The main solver event loop. We execute this function as a timed event,
+// so that it will share the event loop with blessed.
 function eachStep() {
-//    console.log(`At cell ${curStep.cell.toString()}`);
-    if (!curStep.isDeadEnd()) {
+    if (curStep.isWin()) {
+        statusBox.setContent("Solved!");
+        screen.render();
+        return;
+    }
+
+    if (curStep.isDeadEnd()) {
+        // This one is a dead-end. Back up.
+        steps.pop();
+        curStep.undo();
+        drawOnRoute(curStep.cell, curStep.cell.getContent());
+        if (steps.length == 0) {
+            statusBox.setContent("Error: no more steps available. Unsolveable level?");
+            screen.render();
+            // console.error("Console Error: no more steps available. Unsolveable level?");
+            return;
+        }
+        curStep = steps[steps.length-1];
+//        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
+    } else {
         // Step in the first direction.
         // Remove that direction from the list of available directions so we
         // don't have to try it again.
@@ -385,40 +407,32 @@ function eachStep() {
             default:
                 arrow = '?';
         }
-        let stringIdx = curStep.cell.x + ((map.width + 1) * curStep.cell.y);
-        route = route.slice(0, stringIdx) + arrow + route.slice(stringIdx + 1);
+        drawOnRoute(curStep.cell, arrow);
         curStep = nextStep;
-    } else {
-        // This one is a dead-end. Back up.
-        steps.pop();
-        curStep.undo();
-        let stringIdx = curStep.cell.x + ((map.width + 1) * curStep.cell.y);
-        route = route.slice(0, stringIdx) + curStep.cell.getContent() + route.slice(stringIdx + 1);
-        if (steps.length == 0) {
-            statusBox.setContent("Error: no more steps available. Unsolveable level?");
-            screen.render();
-            // console.error("Console Error: no more steps available. Unsolveable level?");
-            return;
-        }
-        curStep = steps[steps.length-1];
-//        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
     }
+
+    // Draw an X to represent our current location
+    drawOnRoute(curStep.cell, "X");
+
+    // Tell the screen to render once a second
     if (true || os.uptime() > lastRender) {
         lastRender = os.uptime();
         mapDisplay.setContent(route.valueOf());
         screen.render();
     }
 
-    if (!curStep.isWin()) {
-        if (isGamePaused) {
-            return;
-        } else {
-            timers.setImmediate(eachStep);
-        }
+    if (isGamePaused) {
+        // Wait for user input to continue
+        return;
     } else {
-        statusBox.setContent("Solved!");
-        screen.render();
+        // continue immediately
+        timers.setImmediate(eachStep);
     }
+}
+
+function drawOnRoute(cell, char) {
+    var stringIdx = cell.x + ((map.width + 1) * cell.y);
+    route = route.slice(0, stringIdx) + char + route.slice(stringIdx + 1);
 }
 
 //timers.setImmediate(eachStep);
