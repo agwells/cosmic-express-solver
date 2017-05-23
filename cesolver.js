@@ -160,12 +160,12 @@ class Cell {
         var x, y, posStr;
         if (Array.isArray(pos)) {
             [x, y] = pos;
-            posStr = new String(`${x},${y}`);
+            posStr = `${x},${y}`;
         } else if (arguments.length == 1) {
             [x, y] = pos.split(',');
             x = parseInt(x);
             y = parseInt(y);
-            posStr = new String(pos);
+            posStr = pos;
         }
 
         if (Cell.cellcache.has(posStr)){
@@ -246,7 +246,7 @@ class Cell {
         return false;
     }
 }
-Cell.cellcache = new WeakMap();
+Cell.cellcache = new Map();
 
 class Car {
     constructor() {
@@ -263,7 +263,6 @@ class Step {
     constructor(pos) {
         this.pos = pos;
         this.cell = Cell.at(pos);
-        Step.filledCells.push(this.cell.toString());
         this.availableDirections = [];
         // TODO: car & alien logic
         // this.cars = [];
@@ -275,7 +274,7 @@ class Step {
         FACINGS.forEach(
             facing => {
                 var c = this.cell.getNextCell(facing);
-                if (c.isNavigable() && !Step.filledCells.includes(c.toString())) {
+                if (c.isNavigable() && !Step.filledCells.includes(c)) {
                     this.availableDirections.push(facing);
                 }
             }
@@ -298,8 +297,10 @@ class Step {
     }
 
     undo() {
-        var i = Step.filledCells.indexOf(this.cell.toString());
-        Step.filledCells.splice(i, 1);
+        var i = Step.filledCells.indexOf(this.cell);
+        if (i > -1) {
+            Step.filledCells.splice(i, 1);
+        }
     }
 
     areAllVitalCellsReachable() {
@@ -391,6 +392,8 @@ function eachStep() {
         curStep = steps[steps.length-1];
 //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
     } else {
+        Step.filledCells.push(curStep.cell);
+
         // Step in the first direction.
         // Remove that direction from the list of available directions so we
         // don't have to try it again.
