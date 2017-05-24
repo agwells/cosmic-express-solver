@@ -43,11 +43,12 @@ var map = {
     height: 0,
     width: 0,
     numberOfCars: 2, // TODO: if I want this to work on other maps, make this more flexible
-    specialCells: [],
     navigableCells: [],
-    startingPos: [0,0],
-    exitPos: [0,0],
+    startingPos: undefined,
+    exitPos: undefined,
     warps: [], // TODO: support for more than one pair of warps
+    aliens: [],
+    houses: [],
     rawmap: "",
     getCharAt: function(x, y) {
         return this.rawmap.charAt(x + (y * (this.width + 1)));
@@ -288,77 +289,194 @@ class Cell {
 Cell.cellcache = new Map();
 
 class Car {
-    constructor() {
-        this.occupant = Car.EMPTY;
-        this.slimed = false;
+    constructor(prevState) {
+        if (prevState) {
+            this.occupant = prevState.occupant;
+            this.slimed = prevState.slimed;
+        } else {
+            this.occupant = Car.EMPTY;
+            this.slimed = false;
+        }
     }
 }
 Car.EMPTY = 0;
-Car.GREEN_ALIEN = 1;
-Car.ORANGE_ALIEN = 2;
-Car.PURPLE_ALIEN = 3;
+Car.GREEN_ALIEN = CELLTYPE.GREEN_ALIEN;
+Car.ORANGE_ALIEN = CELLTYPE.ORANGE_ALIEN;
+Car.PURPLE_ALIEN = CELLTYPE.PURPLE_ALIEN;
 
 class Step {
-    constructor(pos) {
-        this.pos = pos;
-        this.cell = Cell.at(pos);
+    constructor(pos, prevStep) {
+        this.cell = pos;
+        this.prevStep = prevStep;
+        this.cars = [];
+        if (prevStep) {
+            this.route = new String(prevStep.route);
+            this.aliens = prevStep.aliens.slice();
+            this.emptyHouses = prevStep.emptyHouses.slice();;
+            for (let i = 0; i < map.numberOfCars; i++) {
+                this.cars[i] = new Car(prevStep.cars[i]);
+            }
+            this.filledCells = prevStep.filledCells.slice();
+            this.filledCells.push(prevStep.cell);
+        } else {
+            this.route = new String(map.rawmap);
+            this.aliens = map.aliens.slice();
+            this.emptyHouses = map.houses.slice();
+            for (let i = 0; i < map.numberOfCars; i++) {
+                this.cars[i] = new Car();
+            }
+            this.filledCells = [];
+        }
+        
+        // Draw an X to represent our current location
+        this.drawOnRoute(this.cell, "X");
         this.availableDirections = [];
-        // TODO: car & alien logic
-        // this.cars = [];
-        // for (let i = 0; i < map.numberOfCars; i++) {
-        //     this.cars.push(new Car());
-        // }
 
         // Determine which directions are available
         FACINGS.forEach(
             facing => {
                 var c = this.cell.getNextCell(facing);
-                if (c.isNavigable() && !Step.filledCells.includes(c)) {
+                if (c.isNavigable() && !this.filledCells.includes(c)) {
                     this.availableDirections.push(facing);
                 }
             }
         );
 
-        // Determine state of the cars
-        // @todo
+        // Update car states
+        for (let i = 0; i < map.numberOfCars; i++) {
+            let car = this.cars[i];
+            // TODO: support for three cars
+            let carPos;
+            if (i === 0) {
+                carPos = this.cell;
+            } else {
+                if (prevStep) {
+                    carPos = prevStep.cell;
+                } else {
+                    // No previous step means no previous car position to consider.
+                    continue;
+                }
+            }
+
+            // See if any adjacent cells have a matching house
+            if (car.occupant !== Car.EMPTY) {
+                for (let j = 0; j < FACINGS.length; j++) {
+                    let c = carPos.getNextCell(FACINGS[j]);
+                    let idx = this.emptyHouses.indexOf(c);
+                    if (idx > -1) {
+                        if (
+                            c.getContent() === car.occupant.toLowerCase()
+                            || c.getContent() === CELLTYPE.WILDCARD_HOUSE
+                        ) {
+                            car.occupant = Car.EMPTY;
+                            this.drawOnRoute(c, "@");
+                            this.emptyHouses.splice(idx, 1);
+                            // Only one alien per house.
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // See if any adjacent square has an alien that wants to hop on.
+            // (Note that boarding happens after de-boarding, so that one
+            // alien can leave a car, and another board the car, in the same
+            // turn.)
+            if (car.occupant === Car.EMPTY) {
+                for (let j = 0; j < FACINGS.length; j++) {
+                    let c = carPos.getNextCell(FACINGS[j]);
+                    let idx = this.aliens.indexOf(c);
+                    if (idx > -1) {
+                        let boarded = false;
+                        switch(c.getContent()) {
+                            case CELLTYPE.GREEN_ALIEN:
+                                // Green alien always gets in; and slimes the car.
+                                car.slimed = true;
+                                boarded = true;
+                                break;
+                            case CELLTYPE.ORANGE_ALIEN:
+                            case CELLTYPE.PURPLE_ALIEN:
+                                // Will only get in to a non-slimed car.
+                                if (!car.slimed) {
+                                    boarded = true;
+                                }
+                                break;
+                        }
+                        if (boarded) {
+                            car.occupant = c.getContent();
+                            this.aliens.splice(idx, 1);
+                            this.drawOnRoute(c, "_");
+
+                            // Only one alien per car. So we can stop checking
+                            // additional squares.
+                            // TODO: handling the situation where two aliens
+                            // on opposite sides of the track jump and collide
+                            // with each other in the air.
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
+    drawOnRoute(cell, char) {
+        var stringIdx = cell.x + ((map.width + 1) * cell.y);
+        this.route = 
+            this.route.slice(0, stringIdx)
+            + char
+            + this.route.slice(stringIdx + 1);
+    }
+
+
     isDeadEnd() {
-        return !(
-            this.availableDirections.length > 0
-            && this.areAllVitalCellsReachable()
-            && this.isExitReachable()
+        return (
+            !this.isWin()
+            && (
+                this.availableDirections.length === 0
+                || !this.areAllVitalCellsReachable()
+                || !this.isExitReachable()
+                || this.cell.getContent() === CELLTYPE.EXIT
+            )
         );
     }
 
     isWin() {
-        // TODO: aliens
-        return this.cell.getContent() === CELLTYPE.EXIT;
+        return (
+            this.cell.getContent() === CELLTYPE.EXIT
+            && this.aliens.length === 0
+            && this.emptyHouses.length === 0
+        );
     }
 
     undo() {
-        var i = Step.filledCells.indexOf(this.cell);
-        if (i > -1) {
-            Step.filledCells.splice(i, 1);
-        }
+        // var i = Step.filledCells.indexOf(this.cell);
+        // if (i > -1) {
+        //     Step.filledCells.splice(i, 1);
+        // } else {
+        //     return false;
+        // }
     }
 
     areAllVitalCellsReachable() {
-        // Make sure every special cell has at least one reachable cell
-        return map.specialCells.every(pos => {
-            var specialCell = Cell.at(pos);
-            // Only one adjacent cell needs to be reachable
-            return FACINGS.some(
-                facing => {
-                    var c = specialCell.getNextCell(facing);
-                    // TODO: eliminate this duplicate code (from line 228)
-                    return (
-                        c.isNavigable() 
-                        && !Step.filledCells.includes(c)
-                    );
-                }
-            );
-        });
+        // TODO: Need to update this to work with multiple cars
+        return true;
+        // // Make sure every special cell has at least one reachable cell
+        // return map.aliens.concat(map.houses).every(
+        //     specialCell => {
+        //         // Only one adjacent cell needs to be reachable
+        //         return FACINGS.some(
+        //             facing => {
+        //                 var c = specialCell.getNextCell(facing);
+        //                 // TODO: eliminate this duplicate code (from line 228)
+        //                 return (
+        //                     c.isNavigable() 
+        //                     && !Step.filledCells.includes(c)
+        //                 );
+        //             }
+        //         );
+        //     }
+        // );
     }
 
     isExitReachable() {
@@ -368,12 +486,12 @@ class Step {
         map.navigableCells.forEach(
             cell => {
                 // Exclude filled cells (except the currently occupied one)
-                if (Step.filledCells.includes(cell) && cell !== this.cell) {
+                if (this.filledCells.includes(cell)) {
                     return;
                 }
 
                 var adjCells = cell.getAdjacentNavigableCells();
-                adjCells = adjCells.filter(adjCell => (adjCell === this.cell || !Step.filledCells.includes(adjCell)));
+                adjCells = adjCells.filter(adjCell => (!this.filledCells.includes(adjCell)));
 
                 // Check whether this cell is adjacent to any cell in any of the
                 // known contiguous regions
@@ -407,7 +525,7 @@ class Step {
             }
         );
         // Find which region contains the exit cell
-        var exitRegion = regions.find(region => region.includes(Cell.at(map.exitPos)));
+        var exitRegion = regions.find(region => region.includes(map.exitPos));
         // Check whether my location is in the same contiguous region as the
         // exit cell
         if (!exitRegion) {
@@ -420,36 +538,38 @@ class Step {
 // A list of filled cells in the latest step (represented as strings)
 // This is a performance optimization, so I don't have to loop through
 // all the steps
-Step.filledCells = [];
 
 // Locate special cells
 {
     for (let x = 0; x < map.width; x++) {
         for (let y = 0; y < map.height; y++) {
-            let pos = [x,y];
+            let pos = Cell.at([x,y]);
             switch( map.getCharAt(x, y) ) {
                 case CELLTYPE.EXIT:
                     map.exitPos = pos;
                     // The exit counts as both a "special cell" and a navigable cell.
-                    map.navigableCells.push(Cell.at(pos));
+                    map.navigableCells.push(pos);
+                    break;
                 case CELLTYPE.GREEN_ALIEN:
                 case CELLTYPE.ORANGE_ALIEN:
                 case CELLTYPE.PURPLE_ALIEN:
+                    map.aliens.push(pos);
+                    break;
                 case CELLTYPE.GREEN_HOUSE:
                 case CELLTYPE.ORANGE_HOUSE:
                 case CELLTYPE.PURPLE_HOUSE:
                 case CELLTYPE.WILDCARD_HOUSE:
-                    map.specialCells.push(pos)
+                    map.houses.push(pos);
                     break;
                 case CELLTYPE.START:
                     map.startingPos = pos;
-                    map.navigableCells.push(Cell.at(pos));
+                    map.navigableCells.push(pos);
                     break;
                 case CELLTYPE.WARP:
-                    map.warps.push(Cell.at(pos));
+                    map.warps.push(pos);
                     break;
                 case CELLTYPE.EMPTY:
-                    map.navigableCells.push(Cell.at(pos));
+                    map.navigableCells.push(pos);
                     break;
             }
         }
@@ -462,7 +582,6 @@ var steps = [
     new Step(map.startingPos)
 ];
 
-var route = new String(map.rawmap);
 var curStep = steps[0];
 var i = 0;
 var lastRender = os.uptime();
@@ -470,6 +589,7 @@ var lastRender = os.uptime();
 // The main solver event loop. We execute this function as a timed event,
 // so that it will share the event loop with blessed.
 function eachStep() {
+    i++;
     if (curStep.isWin()) {
         instructionBox.setContent("Press q to exit.");
         statusBox.setContent("Solved!");
@@ -481,26 +601,24 @@ function eachStep() {
         // This one is a dead-end. Back up.
         steps.pop();
         curStep.undo();
-        statusBox.setContent("Dead end! Backing up.");
-        drawOnRoute(curStep.cell, curStep.cell.getContent());
+        statusBox.setContent(`${i} : ${curStep.cell.toString()} : Dead end! Backing up.`);
         if (steps.length == 0) {
-            statusBox.setContent("Error: no more steps available. Unsolveable level?");
+            statusBox.setContent(`ERROR: After ${i} iterations, no more steps available.`);
             screen.render();
             // console.error("Console Error: no more steps available. Unsolveable level?");
             return;
         }
         curStep = steps[steps.length-1];
+        mapDisplay.setContent(curStep.route);
 //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
     } else {
-        Step.filledCells.push(curStep.cell);
-
         // Step in the first direction.
         // Remove that direction from the list of available directions so we
         // don't have to try it again.
         let moveThisWay = curStep.availableDirections.shift();
-        let nextPos = curStep.cell.getNextCell(moveThisWay).toString();
+        let nextPos = curStep.cell.getNextCell(moveThisWay);
 //        console.log(`Moving ${FACING_STRINGS.get(moveThisWay)} to ${nextPos}`);
-        let nextStep = new Step(nextPos);
+        let nextStep = new Step(nextPos, curStep);
         steps.push(nextStep);
 
         // Update the curses map
@@ -521,18 +639,31 @@ function eachStep() {
             default:
                 arrow = '?';
         }
-        drawOnRoute(curStep.cell, arrow);
-        statusBox.setContent(`Step ${steps.length}: ${curStep.cell.toString()}`);
+        nextStep.drawOnRoute(curStep.cell, arrow);
+        statusBox.setContent(`${i} : ${curStep.cell.toString()}`);
+        // var carstats = "";
+        // for (let i = 0; i < nextStep.cars.length; i++) {
+        //     carstats += "|";
+        //     let o = nextStep.cars[i].occupant;
+        //     if (o === Car.EMPTY) {
+        //         if (nextStep.cars[i].slimed) {
+        //             carstats += "~";
+        //         } else {
+        //             carstats += "_";
+        //         }
+        //     } else {
+        //         carstats += o;
+        //     }
+        //     carstats += "| ";
+        // }
+        // statusBox.setContent(carstats);
         curStep = nextStep;
     }
-
-    // Draw an X to represent our current location
-    drawOnRoute(curStep.cell, "X");
+    mapDisplay.setContent(curStep.route);
 
     // Tell the screen to render once a second
     if (true || os.uptime() > lastRender) {
         lastRender = os.uptime();
-        mapDisplay.setContent(route.valueOf());
         screen.render();
     }
 
@@ -545,9 +676,6 @@ function eachStep() {
     }
 }
 
-function drawOnRoute(cell, char) {
-    var stringIdx = cell.x + ((map.width + 1) * cell.y);
-    route = route.slice(0, stringIdx) + char + route.slice(stringIdx + 1);
-}
-
-//timers.setImmediate(eachStep);
+// Uncomment these lines to make it run non-interactively
+// isGamePaused = false;
+// timers.setImmediate(eachStep);
