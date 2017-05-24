@@ -435,7 +435,6 @@ class Step {
             && (
                 this.availableDirections.length === 0
                 || !this.areAllVitalCellsReachable()
-                || !this.isExitReachable()
                 || this.cell.getContent() === CELLTYPE.EXIT
             )
         );
@@ -459,40 +458,25 @@ class Step {
     }
 
     areAllVitalCellsReachable() {
-        // TODO: Need to update this to work with multiple cars
-        return true;
-        // // Make sure every special cell has at least one reachable cell
-        // return map.aliens.concat(map.houses).every(
-        //     specialCell => {
-        //         // Only one adjacent cell needs to be reachable
-        //         return FACINGS.some(
-        //             facing => {
-        //                 var c = specialCell.getNextCell(facing);
-        //                 // TODO: eliminate this duplicate code (from line 228)
-        //                 return (
-        //                     c.isNavigable() 
-        //                     && !Step.filledCells.includes(c)
-        //                 );
-        //             }
-        //         );
-        //     }
-        // );
-    }
+        // First turn, everything will be reachable.
+        if (!this.prevStep) {
+            return true;
+        }
 
-    isExitReachable() {
-        return true;
         // Make a list of every known contiguous region on the map (initially empty)
         var regions = [];
         // Scan every empty cell (and my location, and the exit cell) in the map
         map.navigableCells.forEach(
             cell => {
                 // Exclude filled cells (except the currently occupied one)
-                if (this.filledCells.includes(cell)) {
+                // TODO: to work with two cars, we need to check the progress one
+                // turn back.
+                if (this.prevStep.filledCells.includes(cell)) {
                     return;
                 }
 
                 var adjCells = cell.getAdjacentNavigableCells();
-                adjCells = adjCells.filter(adjCell => (!this.filledCells.includes(adjCell)));
+                adjCells = adjCells.filter(adjCell => (!this.prevStep.filledCells.includes(adjCell)));
 
                 // Check whether this cell is adjacent to any cell in any of the
                 // known contiguous regions
@@ -525,15 +509,38 @@ class Step {
                 }
             }
         );
+        
+        var myRegion = regions.find(region => region.includes(this.prevStep.cell));
+
         // Find which region contains the exit cell
-        var exitRegion = regions.find(region => region.includes(map.exitPos));
-        // Check whether my location is in the same contiguous region as the
-        // exit cell
-        if (!exitRegion) {
-            console.log("ERROR: Failed to find exit.");
-            process.exit(1);
+        if (!myRegion.includes(map.exitPos)) {
+            return false;
         }
-        return exitRegion.includes(this.cell);
+
+        // Check that all aliens & empty houses can still be reached as well
+        // Note: to accomodate two cars, I'm checking whether the remaining
+        // aliens and empty houses from THIS TURN would have been accessible
+        // with the blockages from LAST TURN. This gives us a one-turn lag time
+        // for the trailing car to catch up.
+        // TODO: probably a better way to do that.
+        var housesAndAliens = this.aliens.concat(this.emptyHouses);
+
+        // For each house/alien...
+        return housesAndAliens.every(
+            cellToCheckReachable => {
+                return cellToCheckReachable
+                    // ... check each cell next to it ...
+                    .getAdjacentNavigableCells()
+                    // ... and see if any of them ...
+                    .some(
+                        cellNextToHouse => {
+                            // ... are present in the same contiguous region
+                            // as my position last turn.
+                            return myRegion.includes(cellNextToHouse);
+                        }
+                    );
+            }
+        );
     }
 }
 // A list of filled cells in the latest step (represented as strings)
