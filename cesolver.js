@@ -44,7 +44,9 @@ var map = {
     width: 0,
     numberOfCars: 2, // TODO: if I want this to work on other maps, make this more flexible
     specialCells: [],
+    navigableCells: [],
     startingPos: [0,0],
+    exitPos: [0,0],
     warps: [], // TODO: support for more than one pair of warps
     rawmap: "",
     getCharAt: function(x, y) {
@@ -145,6 +147,8 @@ class Cell {
         } else {
             this.outOfBounds = false;
         }
+        this.adjacentCellCache = new Map();
+        this.adjacentNavCellCache = false;
     }
 
     /**
@@ -200,31 +204,65 @@ class Cell {
     }
 
     getNextCell(facing) {
+        var cachedCell = this.adjacentCellCache.get(facing);
+        if (typeof cachedCell !== "undefined") {
+            return cachedCell;
+        }
+
         var nextCell = Cell.at(
             [
                 this.x + parseInt(facing[0]), 
                 this.y + parseInt(facing[1])
             ]
         );
+        var result;
         switch (nextCell.getContent()) {
             case CELLTYPE.CROSSING:
                 // If it's a crossing, we basically skip it over and look
                 // at the next cell past it
-                return nextCell.getNextCell(facing);
+                result = nextCell.getNextCell(facing);
+                break;
             case CELLTYPE.WARP:
                 // If it's a warp, we look at the cell next to the other warp.
                 // So find the other warp in map.warps.
                 // @todo: support for more than one pair of warps
                 let destWarp;
-                if (map.warps[0] === this) {
+                if (map.warps[0] === nextCell) {
                     destWarp = map.warps[1];
                 } else {
                     destWarp = map.warps[0];
                 }
-                return destWarp.getNextCell(facing);
+                result = destWarp.getNextCell(facing);
+                break;
             default:
-                return nextCell;
+                result = nextCell;
+                break;
         }
+        this.adjacentCellCache.set(facing, result);
+        return result;
+    }
+
+    getAdjacentNavigableCells() {
+        if (this.adjacentNavCellCache !== false) {
+            return this.adjacentNavCellCache;
+        }
+
+        if (!this.isNavigable()) {
+            this.adjacentNavCellCache = [];
+            return this.adjacentNavCellCache;
+        }
+
+        var result = [];
+        FACINGS.forEach(
+            facing => {
+                var nextCell = this.getNextCell(facing);
+                if (nextCell.isNavigable()) {
+                    result.push(nextCell);
+                }
+            }
+        );
+        this.adjacentNavCellCache = result;
+        return result;
     }
 
     isOutOfBounds() {
@@ -240,6 +278,7 @@ class Cell {
             case CELLTYPE.CROSSING:
             case CELLTYPE.EXIT:
             case CELLTYPE.WARP:
+            case CELLTYPE.START:
                 return true;
             default:
         }
@@ -288,6 +327,7 @@ class Step {
         return !(
             this.availableDirections.length > 0
             && this.areAllVitalCellsReachable()
+            && this.isExitReachable()
         );
     }
 
@@ -314,14 +354,67 @@ class Step {
                     // TODO: eliminate this duplicate code (from line 228)
                     return (
                         c.isNavigable() 
-                        && (
-                            (c.x == this.cell.x && c.y == this.cell.y)
-                            || !Step.filledCells.includes(c.toString())
-                        )
+                        && !Step.filledCells.includes(c)
                     );
                 }
             );
         });
+    }
+
+    isExitReachable() {
+        // Make a list of every known contiguous region on the map (initially empty)
+        var regions = [];
+        // Scan every empty cell (and my location, and the exit cell) in the map
+        map.navigableCells.forEach(
+            cell => {
+                // Exclude filled cells (except the currently occupied one)
+                if (Step.filledCells.includes(cell) && cell !== this.cell) {
+                    return;
+                }
+
+                var adjCells = cell.getAdjacentNavigableCells();
+                adjCells = adjCells.filter(adjCell => (adjCell === this.cell || !Step.filledCells.includes(adjCell)));
+
+                // Check whether this cell is adjacent to any cell in any of the
+                // known contiguous regions
+                var inTheseRegions = [];
+                if (adjCells.length) {
+                    inTheseRegions = regions.filter(
+                        region => adjCells.some(
+                            adjCell => region.includes(adjCell)
+                        )
+                   );
+                }
+                switch(inTheseRegions.length) {
+                    case 0:
+                        // Not in any known region yet. Start a new one.
+                        let newRegion = [cell];
+                        regions.push(newRegion);
+                        break;
+                    case 1:
+                        // In one known region. Add it to that one.
+                        inTheseRegions[0].push(cell);
+                        break;
+                    default:
+                        // In more than one. Join them together.
+                        let mergeRegion = inTheseRegions[0];
+                        for (let i = 1; i < inTheseRegions.length; i++) {
+                            mergeRegion.splice(mergeRegion.length, 0, ...inTheseRegions[i]);
+                            let idx = regions.indexOf(inTheseRegions[i]);
+                            regions.splice(idx, 1);
+                        }
+                }
+            }
+        );
+        // Find which region contains the exit cell
+        var exitRegion = regions.find(region => region.includes(Cell.at(map.exitPos)));
+        // Check whether my location is in the same contiguous region as the
+        // exit cell
+        if (!exitRegion) {
+            console.log("ERROR: Failed to find exit.");
+            process.exit(1);
+        }
+        return exitRegion.includes(this.cell);
     }
 }
 // A list of filled cells in the latest step (represented as strings)
@@ -336,6 +429,9 @@ Step.filledCells = [];
             let pos = [x,y];
             switch( map.getCharAt(x, y) ) {
                 case CELLTYPE.EXIT:
+                    map.exitPos = pos;
+                    // The exit counts as both a "special cell" and a navigable cell.
+                    map.navigableCells.push(Cell.at(pos));
                 case CELLTYPE.GREEN_ALIEN:
                 case CELLTYPE.ORANGE_ALIEN:
                 case CELLTYPE.PURPLE_ALIEN:
@@ -347,9 +443,13 @@ Step.filledCells = [];
                     break;
                 case CELLTYPE.START:
                     map.startingPos = pos;
+                    map.navigableCells.push(Cell.at(pos));
                     break;
                 case CELLTYPE.WARP:
                     map.warps.push(Cell.at(pos));
+                    break;
+                case CELLTYPE.EMPTY:
+                    map.navigableCells.push(Cell.at(pos));
                     break;
             }
         }
