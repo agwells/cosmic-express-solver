@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const blessed = require('blessed');
-const sleep = require('sleep');
 const os = require('os');
 const timers = require('timers');
 
@@ -291,11 +290,6 @@ class Cell {
             return this.adjacentNavCellCache;
         }
 
-        if (!this.isNavigable()) {
-            this.adjacentNavCellCache = [];
-            return this.adjacentNavCellCache;
-        }
-
         var result = [];
         FACINGS.forEach(
             facing => {
@@ -544,6 +538,7 @@ class Step {
                     default:
                         // In more than one. Join them together.
                         let mergeRegion = inTheseRegions[0];
+                        mergeRegion.push(cell);
                         for (let i = 1; i < inTheseRegions.length; i++) {
                             mergeRegion.splice(mergeRegion.length, 0, ...inTheseRegions[i]);
                             let idx = regions.indexOf(inTheseRegions[i]);
@@ -699,22 +694,6 @@ function eachStep() {
         }
         nextStep.drawOnRoute(curStep.cell, arrow);
         statusBox.setContent(`${i} : ${curStep.cell.toString()}`);
-        // var carstats = "";
-        // for (let i = 0; i < nextStep.cars.length; i++) {
-        //     carstats += "|";
-        //     let o = nextStep.cars[i].occupant;
-        //     if (o === Car.EMPTY) {
-        //         if (nextStep.cars[i].slimed) {
-        //             carstats += "~";
-        //         } else {
-        //             carstats += "_";
-        //         }
-        //     } else {
-        //         carstats += o;
-        //     }
-        //     carstats += "| ";
-        // }
-        // statusBox.setContent(carstats);
         curStep = nextStep;
     }
     mapDisplay.setContent(curStep.route);
