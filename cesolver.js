@@ -55,12 +55,29 @@ var map = {
     },
 };
 
+var badArgs = false;
 if (process.argv.length < 3) {
-    console.error("specify the map file as the first argument");
+    badArgs = true;
+}
+
+var interactiveMode = true;
+var mapfile;
+if (process.argv[2] === '--non-interactive' || process.argv[2] === '-I') {
+    interactiveMode = false;
+    if (process.argv.length < 4) {
+        badArgs = true;
+    } else {
+        mapfile = process.argv[3];
+    }
+} else {
+    mapfile = process.argv[2];
+}
+
+if (badArgs) {
+    console.error("Usage: cesolver.js [--non-interactive|-I] MAPFILE");
     process.exit(1);
 }
 
-var mapfile = process.argv[2];
 map.rawmap = fs.readFileSync(mapfile, "UTF-8");
 // Ignore that annoying dangling newline vi puts in
 if (map.rawmap.slice(-1) === "\n") {
@@ -80,64 +97,90 @@ if (map.rawmap.slice(-1) === "\n") {
 //    console.log("Map size " + map.width + " by " + map.height);
 }
 
-var screen = blessed.screen({
-//    "autoPadding": true
-});
-var mapDisplay = blessed.box({
-    content: map.rawmap,
-    height: map.height + 2,
-    width: map.width + 2,
-    border: {
-        type: 'line'
-    }
-});
-screen.append(mapDisplay);
-// A text box to put status messages in
-var statusBox = blessed.text({
-    top: mapDisplay.height,
-    height: 1,
-    content: "READY"
-});
-screen.append(statusBox);
-var instructionBox = blessed.text({
-    top: (+mapDisplay.height) + (+statusBox.height),
-    content: "Press SPACE to start.\nPress . to step."
-});
-screen.append(instructionBox);
-
-// Quit on Escape, q, or Control-C. 
-screen.key(['escape', 'q', 'C-c'], function(ch, key) {
-  return process.exit(0);
-});
-
+var screen, mapDisplay, statusBox, instructionBox;
 var isGamePaused = true;
-screen.key(['p', 'space'], function(ch, key) {
-    if (isGamePaused) {
-        instructionBox.setContent(
-            "Press SPACE to pause."
-        );
-        statusBox.setContent("Solving...");
-        isGamePaused = false;
-        timers.setImmediate(eachStep);
-    } else {
-        instructionBox.setContent(
-            "Press SPACE to start.\nPress . to step."
-        );
-        statusBox.setContent("PAUSED");
-        isGamePaused = true;
-    }
-});
+if (interactiveMode) {
+    screen = blessed.screen({
+        fastCSR: true
+    //    "autoPadding": true
+    });
+    mapDisplay = blessed.box({
+        content: map.rawmap,
+        height: map.height + 2,
+        width: map.width + 2,
+        border: {
+            type: 'line'
+        }
+    });
+    screen.append(mapDisplay);
+    // A text box to put status messages in
+    statusBox = blessed.text({
+        top: mapDisplay.height,
+        height: 1,
+        content: "READY"
+    });
+    screen.append(statusBox);
+    instructionBox = blessed.text({
+        top: (+mapDisplay.height) + (+statusBox.height),
+        content: "Press SPACE to start.\nPress . to step."
+    });
+    screen.append(instructionBox);
 
-screen.key(['.'], function(ch, key) {
-    if (isGamePaused) {
-        screen.render();
-        timers.setImmediate(eachStep);
-    }
-});
+    // Quit on Escape, q, or Control-C.
+    screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+    return process.exit(0);
+    });
 
-screen.render();
-// Create a screen object. 
-//sleep.sleep(5);
+    screen.key(['p', 'space'], function(ch, key) {
+        if (isGamePaused) {
+            instructionBox.setContent(
+                "Press SPACE to pause."
+            );
+            statusBox.setContent("Solving...");
+            isGamePaused = false;
+            timers.setImmediate(eachStep);
+        } else {
+            instructionBox.setContent(
+                "Press SPACE to start.\nPress . to step."
+            );
+            statusBox.setContent("PAUSED");
+            isGamePaused = true;
+        }
+    });
+
+    screen.key(['.'], function(ch, key) {
+        if (isGamePaused) {
+            screen.render();
+            timers.setImmediate(eachStep);
+        }
+    });
+
+    screen.render();
+} else {
+    screen = {
+        render: function(){}
+    };
+    mapDisplay = {
+        setContent: function(content){
+            this.content = content;
+        },
+        content: ""
+    };
+    statusBox = {
+        PRINT_INTERVAL: 100000,
+        sinceLastPrint: 100000,
+        setContent: function(content){
+            if (this.sinceLastPrint === this.PRINT_INTERVAL) {
+                console.log(content);
+                this.sinceLastPrint = 0;
+            }
+            this.sinceLastPrint++;
+        }
+    };
+    instructionBox = {
+        setContent: function(){}
+    }
+}
 
 class Cell {
     constructor(x, y) {
@@ -602,6 +645,10 @@ function eachStep() {
         instructionBox.setContent("Press q to exit.");
         statusBox.setContent("Solved!");
         screen.render();
+        if (!interactiveMode) {
+            console.log("Solved!");
+            console.log(mapDisplay.content);
+        }
         return;
     }
 
@@ -611,6 +658,9 @@ function eachStep() {
         curStep.undo();
         statusBox.setContent(`${i} : ${curStep.cell.toString()} : Dead end! Backing up.`);
         if (steps.length == 0) {
+            if (!interactiveMode) {
+                statusBox.sinceLastPrint = statusBox.PRINT_INTERVAL;
+            }
             statusBox.setContent(`ERROR: After ${i} iterations, no more steps available.`);
             screen.render();
             // console.error("Console Error: no more steps available. Unsolveable level?");
@@ -684,6 +734,7 @@ function eachStep() {
     }
 }
 
-// Uncomment these lines to make it run non-interactively
-// isGamePaused = false;
-// timers.setImmediate(eachStep);
+if (!interactiveMode) {
+    isGamePaused = false;
+    timers.setImmediate(eachStep);
+}
