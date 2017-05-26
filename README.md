@@ -61,3 +61,10 @@ Z...
 aA..
 ##..
 ```
+
+## Limitations
+
+* Only supports up to 3 cars
+* Only supports one pair of warps
+* Doesn't support [SPOILER]
+* Doesn't support that thing where when the train goes between two aliens at the same time they bump against each other and neither one gets into the car.

@@ -12,7 +12,8 @@ const CELLTYPE = {
     CROSSING: '+',
     WARP: '*',
     EXIT: 'Z',
-    START: 'A',
+    FRONT_CAR: 'A',
+    OTHER_CARS: 'a',
     GREEN_ALIEN: 'G',
     GREEN_HOUSE: 'g',
     ORANGE_ALIEN: 'O',
@@ -41,11 +42,13 @@ FACING_STRINGS.set(WEST, "west");
 var map = {
     height: 0,
     width: 0,
-    numberOfCars: 2, // TODO: if I want this to work on other maps, make this more flexible
-    navigableCells: [],
+    numberOfCars: 1,
+    navigableCells: [], 
     startingPos: undefined,
     exitPos: undefined,
     warps: [], // TODO: support for more than one pair of warps
+                // ... wait, *are* there any levels with more than one pair
+                // of warps?
     aliens: [],
     houses: [],
     rawmap: "",
@@ -316,7 +319,7 @@ class Cell {
             case CELLTYPE.CROSSING:
             case CELLTYPE.EXIT:
             case CELLTYPE.WARP:
-            case CELLTYPE.START:
+            case CELLTYPE.FRONT_CAR:
                 return true;
             default:
         }
@@ -382,17 +385,28 @@ class Step {
         // Update car states
         for (let i = 0; i < map.numberOfCars; i++) {
             let car = this.cars[i];
-            // TODO: support for three cars
             let carPos;
-            if (i === 0) {
-                carPos = this.cell;
-            } else {
-                if (prevStep) {
-                    carPos = prevStep.cell;
-                } else {
-                    // No previous step means no previous car position to consider.
-                    continue;
-                }
+            // TODO: general-purpose solution for more than three cars?
+            switch (i) {
+                case 0:
+                    carPos = this.cell;
+                    break;
+                case 1:
+                    if (prevStep) {
+                        carPos = prevStep.cell;
+                    } else {
+                        // This car wasn't on the board yet.
+                        continue;
+                    }
+                    break;
+                case 2:
+                    if (prevStep && prevStep.prevStep) {
+                        carPos = prevStep.prevStep.cell;
+                    } else {
+                        // This car wasn't on the board yet.
+                        continue;
+                    }
+                
             }
 
             // See if any adjacent cells have a matching house
@@ -607,12 +621,23 @@ class Step {
                 case CELLTYPE.WILDCARD_HOUSE:
                     map.houses.push(pos);
                     break;
-                case CELLTYPE.START:
+                case CELLTYPE.FRONT_CAR:
                     map.startingPos = pos;
                     map.navigableCells.push(pos);
                     break;
+                case CELLTYPE.OTHER_CARS:
+                    map.numberOfCars++;
+                    if (map.numberOfCars > 3) {
+                        console.error("ERROR: Sorry, this program only supports up to three train cars.");
+                        process.exit(1);
+                    }
+                    break;
                 case CELLTYPE.WARP:
                     map.warps.push(pos);
+                    if (map.warps.length > 2) {
+                        console.error("ERROR: Sorry, this program only supports one pair of wormholes per map.");
+                        process.exit(1);
+                    }
                     break;
                 case CELLTYPE.EMPTY:
                     map.navigableCells.push(pos);
