@@ -5,3 +5,7 @@
 blessed@^0.1.81:
   version "0.1.81"
   resolved "https://registry.yarnpkg.com/blessed/-/blessed-0.1.81.tgz#f962d687ec2c369570ae71af843256e6d0ca1129"
+
+node-serialize@^0.0.4:
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/node-serialize/-/node-serialize-0.0.4.tgz#b73a49e1353306657103a5e49f7f05279ba97f7f"

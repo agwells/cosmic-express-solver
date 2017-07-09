@@ -6,6 +6,7 @@
   "author": "Aaron Wells",
   "license": "MIT",
   "dependencies": {
-    "blessed": "^0.1.81"
+    "blessed": "^0.1.81",
+    "node-serialize": "^0.0.4"
   }
 }

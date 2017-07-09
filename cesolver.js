@@ -4,6 +4,7 @@ const fs = require('fs');
 const blessed = require('blessed');
 const os = require('os');
 const timers = require('timers');
+const serialize = require('node-serialize');
 
 // Key to the map
 const CELLTYPE = {
@@ -663,13 +664,21 @@ class Step {
     }
 }
 
-// Starting state
-var steps = [
-    // TODO: Maybe some smarter handling of the starting facing
-    new Step(map.startingPos)
-];
+var steps;
+if (fs.existsSync('./state.json')) {
+    steps = Array.from(serialize.unserialize(fs.readFileSync('./state.json', 'UTF-8').toString()));
+    console.log(steps.length);
+    process.exit();
+} else {
 
-var curStep = steps[0];
+    // Starting state
+    steps = [
+        // TODO: Maybe some smarter handling of the starting facing
+        new Step(map.startingPos)
+    ];
+}
+
+var curStep = steps[steps.length - 1];
 var i = 0;
 var lastRender = os.uptime();
 
@@ -757,4 +766,10 @@ function eachStep() {
 if (!interactiveMode) {
     isGamePaused = false;
     timers.setImmediate(eachStep);
+}
+
+setTimeout(saveState, 10000);
+// Periodically backup state to JSON
+function saveState() {
+    fs.writeFile('state.json', serialize.serialize(steps), function(){setTimeout(saveState, 10000)});
 }
