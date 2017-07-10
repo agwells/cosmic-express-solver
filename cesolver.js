@@ -20,7 +20,15 @@ const CELLTYPE = {
     ORANGE_HOUSE: 'o',
     PURPLE_ALIEN: 'P',
     PURPLE_HOUSE: 'p',
-    WILDCARD_HOUSE: '?'
+    WILDCARD_HOUSE: '?',
+    // Tracks laid down on the map to represent suspected constraints of
+    // the solution.
+    HINT_EAST_WEST: '-',
+    HINT_EAST_NORTH: 'L',
+    HINT_EAST_SOUTH: 'r',
+    HINT_NORTH_SOUTH: '|',
+    HINT_WEST_NORTH: 'J',
+    HINT_WEST_SOUTH: '7',
 }
 
 const NORTH = [0,-1];
@@ -641,6 +649,14 @@ class Step {
                     break;
                 case CELLTYPE.EMPTY:
                     map.navigableCells.push(pos);
+                    break;
+                case CELLTYPE.HINT_EAST_NORTH:
+                case CELLTYPE.HINT_EAST_SOUTH:
+                case CELLTYPE.HINT_EAST_WEST:
+                case CELLTYPE.HINT_NORTH_SOUTH:
+                case CELLTYPE.HINT_WEST_NORTH:
+                case CELLTYPE.HINT_WEST_SOUTH:
+                    map.hintCells.push(pos);
                     break;
             }
         }
