@@ -364,8 +364,13 @@ class Step {
             for (let i = 0; i < map.numberOfCars; i++) {
                 this.cars[i] = new Car(prevStep.cars[i]);
             }
+
+            // A list of filled cells in the latest step (represented as strings)
+            // This is a performance optimization, so I don't have to loop through
+            // all the steps
             this.filledCells = prevStep.filledCells.slice();
             this.filledCells.push(prevStep.cell);
+            
             // A list of the steps we've taken since we last loaded or unloaded
             // an alien. We can use this to identify useless solution spaces.
             this.stepsSinceLastPassengerChange = this.prevStep.stepsSinceLastPassengerChange.slice();
@@ -636,9 +641,6 @@ class Step {
         );
     }
 }
-// A list of filled cells in the latest step (represented as strings)
-// This is a performance optimization, so I don't have to loop through
-// all the steps
 
 // Locate special cells
 {
