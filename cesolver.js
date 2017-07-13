@@ -353,9 +353,13 @@ Car.ORANGE_ALIEN = CELLTYPE.ORANGE_ALIEN;
 Car.PURPLE_ALIEN = CELLTYPE.PURPLE_ALIEN;
 
 class Step {
-    constructor(pos, prevStep) {
+    constructor(pos, prevStep, startDir) {
         this.cell = pos;
         this.prevStep = prevStep;
+        this.startDir = startDir;
+        if (!this.startDir) {
+            this.startDir = SOUTH;
+        };
         this.cars = [];
         if (prevStep) {
             this.route = new String(prevStep.route);
@@ -391,14 +395,35 @@ class Step {
         this.availableDirections = [];
 
         // Determine which directions are available
-        FACINGS.forEach(
-            facing => {
-                var c = this.cell.getNextCell(facing);
-                if (c.isNavigable() && !this.filledCells.includes(c)) {
+        var facingsToTry = [];
+        switch(this.startDir.toString()) {
+            case NORTH.toString():
+                facingsToTry = [NORTH, EAST, SOUTH, WEST];
+                break;
+            case EAST.toString():
+                facingsToTry = [EAST, SOUTH, WEST, NORTH];
+                break;
+            case SOUTH.toString():
+                facingsToTry = [SOUTH, WEST, NORTH, EAST];
+                break;
+            case WEST.toString():
+                facingsToTry = [WEST, NORTH, EAST, SOUTH];
+                break;
+            default:
+                facingsToTry = [WEST, NORTH, EAST, SOUTH];
+        }
+        for (let f = 0; f < facingsToTry.length; f++) {
+            let facing = facingsToTry[f];
+            var c = this.cell.getNextCell(facing);
+            if (c.isNavigable() && !this.filledCells.includes(c)) {
+                // // Random!
+                // if (Math.random() > 0.5) {
+                //     this.availableDirections.push(facing);
+                // } else {
                     this.availableDirections.push(facing);
-                }
+                // }
             }
-        );
+        }
 
         /**
          * Indicates whether one of the cars boarded or lost a passenger.
@@ -747,7 +772,7 @@ function eachStep() {
         let moveThisWay = curStep.availableDirections.shift();
         let nextPos = curStep.cell.getNextCell(moveThisWay);
 //        console.log(`Moving ${FACING_STRINGS.get(moveThisWay)} to ${nextPos}`);
-        let nextStep = new Step(nextPos, curStep);
+        let nextStep = new Step(nextPos, curStep, moveThisWay);
         steps.push(nextStep);
 
         // Update the curses map
