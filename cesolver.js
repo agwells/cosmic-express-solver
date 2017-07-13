@@ -366,6 +366,10 @@ class Step {
             }
             this.filledCells = prevStep.filledCells.slice();
             this.filledCells.push(prevStep.cell);
+            // A list of the steps we've taken since we last loaded or unloaded
+            // an alien. We can use this to identify useless solution spaces.
+            this.stepsSinceLastPassengerChange = this.prevStep.stepsSinceLastPassengerChange.slice();
+            this.stepsSinceLastPassengerChange.push(this.prevStep);
         } else {
             this.route = new String(map.rawmap);
             this.aliens = map.aliens.slice();
@@ -374,6 +378,7 @@ class Step {
                 this.cars[i] = new Car();
             }
             this.filledCells = [];
+            this.stepsSinceLastPassengerChange = [];
         }
         
         // Draw an X to represent our current location
@@ -389,6 +394,12 @@ class Step {
                 }
             }
         );
+
+        /**
+         * Indicates whether one of the cars boarded or lost a passenger.
+         * Used in short-circuiting redundant paths.
+         */
+        this.isPassengerChange = false;
 
         // Update car states
         for (let i = 0; i < map.numberOfCars; i++) {
@@ -427,6 +438,7 @@ class Step {
                             c.getContent() === car.occupant.toLowerCase()
                             || c.getContent() === CELLTYPE.WILDCARD_HOUSE
                         ) {
+                            this.isPassengerChange = true;
                             car.occupant = Car.EMPTY;
                             this.drawOnRoute(c, "@");
                             this.emptyHouses.splice(idx, 1);
@@ -462,20 +474,27 @@ class Step {
                                 break;
                         }
                         if (boarded) {
+                            this.isPassengerChange = true;
                             car.occupant = c.getContent();
                             this.aliens.splice(idx, 1);
                             this.drawOnRoute(c, "_");
 
                             // Only one alien per car. So we can stop checking
                             // additional squares.
-                            // TODO: handling the situation where two aliens
-                            // on opposite sides of the track jump and collide
-                            // with each other in the air.
+                            /**
+                             * @todo: Handle the situation where two aliens
+                             * on opposite sides of the tracke jump and collide
+                             * with each other in the air and neither one boards.
+                             */
                             break;
                         }
                     }
                 }
             }
+        }
+
+        if (this.isPassengerChange) {
+            this.stepsSinceLastPassengerChange = [];
         }
     }
 
@@ -487,12 +506,12 @@ class Step {
             + this.route.slice(stringIdx + 1);
     }
 
-
     isDeadEnd() {
         return (
             !this.isWin()
             && (
                 this.availableDirections.length === 0
+                || this.isRedundantPath()
                 || !this.areAllVitalCellsReachable()
                 || this.cell.getContent() === CELLTYPE.EXIT
             )
@@ -514,6 +533,20 @@ class Step {
         // } else {
         //     return false;
         // }
+    }
+
+    isRedundantPath() {
+        // The path doubles back on itself without doing anything. No point
+        // pursuing that further, because it's equivalent to another shorter
+        // path we haven't pursued yet.
+        let self = this;
+        return this.stepsSinceLastPassengerChange
+            .some(
+                oldStep => {
+                    return oldStep !== self.prevStep 
+                        && self.cell.getAdjacentNavigableCells().includes(oldStep.cell);
+                }
+            );
     }
 
     areAllVitalCellsReachable() {
