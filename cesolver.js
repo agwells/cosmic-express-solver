@@ -165,6 +165,28 @@ if (interactiveMode) {
         }
     });
 
+    screen.key(['b'], function(ch, key) {
+        if (isGamePaused) {
+            // Manually backing out of a bad route
+            steps.pop();
+            curStep.undo();
+            statusBox.setContent(`${i} : ${curStep.cell.toString()} : Manually backing up.`);
+            if (steps.length == 0) {
+                if (!interactiveMode) {
+                    statusBox.sinceLastPrint = statusBox.PRINT_INTERVAL;
+                }
+                statusBox.setContent(`ERROR: After ${i} iterations, no more steps available.`);
+                screen.render();
+                // console.error("Console Error: no more steps available. Unsolveable level?");
+                return;
+            }
+            curStep = steps[steps.length-1];
+            mapDisplay.setContent(curStep.route);
+    //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
+            timers.setImmediate(eachStep);
+        }
+    })
+
     screen.render();
 } else {
     screen = {
