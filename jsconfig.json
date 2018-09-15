@@ -1,10 +1,9 @@
 {
-    "compilerOptions": {
-        "target": "es6",
-        "checkJs": true,
-        "forceConsistentCasingInFileNames": true,
-        "lib": [
-            "esnext"
-        ]
-    }
+  "compilerOptions": {
+    "target": "es6",
+    "checkJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["esnext"],
+    "module": "commonjs"
+  }
 }
