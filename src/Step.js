@@ -280,16 +280,18 @@ class Step {
       }
       switch (inTheseRegions.length) {
         case 0:
-          // Not in any known region yet. Start a new one.
-          let newRegion = [cell];
-          regions.push(newRegion);
+          {
+            // Not in any known region yet. Start a new one.
+            let newRegion = [cell];
+            regions.push(newRegion);
+          }
           break;
         case 1:
           // In one known region. Add it to that one.
           inTheseRegions[0].push(cell);
           break;
-        default:
-          // In more than one. Join them together.
+        default: // In more than one. Join them together.
+        {
           let mergeRegion = inTheseRegions[0];
           mergeRegion.push(cell);
           for (let i = 1; i < inTheseRegions.length; i++) {
@@ -297,6 +299,7 @@ class Step {
             let idx = regions.indexOf(inTheseRegions[i]);
             regions.splice(idx, 1);
           }
+        }
       }
     });
 

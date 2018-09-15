@@ -6,12 +6,16 @@
   "author": "Aaron Wells",
   "license": "MIT",
   "scripts": {
-    "format": "prettier --write cesolver.js 'src/**/*.js'"
+    "format": "prettier --write cesolver.js 'src/**/*.js'",
+    "lint": "eslint cesolver.js 'src/**/*.js'"
   },
   "dependencies": {
     "blessed": "^0.1.81"
   },
   "devDependencies": {
+    "eslint": "^5.6.0",
+    "eslint-config-prettier": "^3.0.1",
+    "eslint-plugin-prettier": "^2.6.2",
     "prettier": "^1.14.2"
   },
   "prettier": {

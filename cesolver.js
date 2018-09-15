@@ -78,11 +78,11 @@ if (interactiveMode) {
   screen.append(instructionBox);
 
   // Quit on Escape, q, or Control-C.
-  screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+  screen.key(['escape', 'q', 'C-c'], function() {
     return process.exit(0);
   });
 
-  screen.key(['p', 'space'], function(ch, key) {
+  screen.key(['p', 'space'], function() {
     if (isGamePaused) {
       instructionBox.setContent('Press SPACE to pause.');
       statusBox.setContent('Solving...');
@@ -95,14 +95,14 @@ if (interactiveMode) {
     }
   });
 
-  screen.key(['.'], function(ch, key) {
+  screen.key(['.'], function() {
     if (isGamePaused) {
       screen.render();
       timers.setImmediate(mainProgramLoop);
     }
   });
 
-  screen.key(['b'], function(ch, key) {
+  screen.key(['b'], function() {
     if (isGamePaused) {
       // Manually backing out of a bad route
       steps.pop();

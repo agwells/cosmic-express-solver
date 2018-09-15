@@ -56,13 +56,15 @@ class Cell {
         // If it's a warp, we look at the cell next to the other warp.
         // So find the other warp in map.warps.
         // @todo: support for more than one pair of warps
-        let destWarp;
-        if (this.gameMap.warps[0] === nextCell) {
-          destWarp = this.gameMap.warps[1];
-        } else {
-          destWarp = this.gameMap.warps[0];
+        {
+          let destWarp;
+          if (this.gameMap.warps[0] === nextCell) {
+            destWarp = this.gameMap.warps[1];
+          } else {
+            destWarp = this.gameMap.warps[0];
+          }
+          result = destWarp.getNextCell(facing);
         }
-        result = destWarp.getNextCell(facing);
         break;
       default:
         result = nextCell;
