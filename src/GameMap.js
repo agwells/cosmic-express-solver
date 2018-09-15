@@ -1,6 +1,6 @@
-const fs = require("fs");
-const Cell = require("./Cell");
-const { CELLTYPE } = require("./constants");
+const fs = require('fs');
+const Cell = require('./Cell');
+const { CELLTYPE } = require('./constants');
 
 class GameMap {
   /**
@@ -23,23 +23,23 @@ class GameMap {
     this.aliens = [];
     this.houses = [];
     this.hintCells = [];
-    this.rawmap = "";
+    this.rawmap = '';
 
-    this.rawmap = fs.readFileSync(file, "UTF-8");
+    this.rawmap = fs.readFileSync(file, 'UTF-8');
     // Ignore dangling newline at the end of the file.
-    if (this.rawmap.slice(-1) === "\n") {
+    if (this.rawmap.slice(-1) === '\n') {
       this.rawmap = this.rawmap.slice(0, -1);
     }
 
     // Find out the size of the map
     {
-      let lines = this.rawmap.split("\n");
+      let lines = this.rawmap.split('\n');
       this.height = lines.length;
       this.width = lines[0].length;
       // Validate that the map is properly rectangular
-      if (!lines.every(line => line.length === this.width)) {
+      if (!lines.every((line) => line.length === this.width)) {
         console.error(
-          "Invalid map file. Every row in the file must be the same size."
+          'Invalid map file. Every row in the file must be the same size.'
         );
         process.exit(1);
       }
@@ -75,7 +75,7 @@ class GameMap {
             this.numberOfCars++;
             if (this.numberOfCars > 3) {
               console.error(
-                "ERROR: Sorry, this program only supports up to three train cars."
+                'ERROR: Sorry, this program only supports up to three train cars.'
               );
               process.exit(1);
             }
@@ -84,7 +84,7 @@ class GameMap {
             this.warps.push(pos);
             if (this.warps.length > 2) {
               console.error(
-                "ERROR: Sorry, this program only supports one pair of wormholes per map."
+                'ERROR: Sorry, this program only supports one pair of wormholes per map.'
               );
               process.exit(1);
             }
@@ -124,7 +124,7 @@ class GameMap {
       [x, y] = pos;
       posStr = `${x},${y}`;
     } else if (arguments.length == 1) {
-      [x, y] = pos.split(",");
+      [x, y] = pos.split(',');
       x = parseInt(x);
       y = parseInt(y);
       posStr = pos;

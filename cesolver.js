@@ -1,13 +1,12 @@
 #! /usr/bin/env node
 
-const fs = require("fs");
-const blessed = require("blessed");
-const os = require("os");
-const timers = require("timers");
+const blessed = require('blessed');
+const os = require('os');
+const timers = require('timers');
 
-const { FACINGS } = require("./src/constants");
-const GameMap = require("./src/GameMap");
-const Step = require("./src/Step");
+const { FACINGS } = require('./src/constants');
+const GameMap = require('./src/GameMap');
+const Step = require('./src/Step');
 
 /**
  * Process command-line flags
@@ -19,7 +18,7 @@ if (process.argv.length < 3) {
 
 var interactiveMode = true;
 var mapfile;
-if (process.argv[2] === "--non-interactive" || process.argv[2] === "-I") {
+if (process.argv[2] === '--non-interactive' || process.argv[2] === '-I') {
   interactiveMode = false;
   if (process.argv.length < 4) {
     badArgs = true;
@@ -31,7 +30,7 @@ if (process.argv[2] === "--non-interactive" || process.argv[2] === "-I") {
 }
 
 if (badArgs) {
-  console.error("Usage: cesolver.js [--non-interactive|-I] MAPFILE");
+  console.error('Usage: cesolver.js [--non-interactive|-I] MAPFILE');
   process.exit(1);
 }
 const gameMap = new GameMap(mapfile);
@@ -39,7 +38,7 @@ const gameMap = new GameMap(mapfile);
 // Starting state
 var steps = [
   // TODO: Maybe some smarter handling of the starting facing?
-  new Step(gameMap, gameMap.startingPos)
+  new Step(gameMap, gameMap.startingPos),
 ];
 
 var curStep = steps[0];
@@ -53,7 +52,7 @@ var screen, mapDisplay, statusBox, instructionBox;
 var isGamePaused = true;
 if (interactiveMode) {
   screen = blessed.screen({
-    fastCSR: true
+    fastCSR: true,
     //    "autoPadding": true
   });
   mapDisplay = blessed.box({
@@ -61,49 +60,49 @@ if (interactiveMode) {
     height: gameMap.height + 2,
     width: gameMap.width + 2,
     border: {
-      type: "line"
-    }
+      type: 'line',
+    },
   });
   screen.append(mapDisplay);
   // A text box to put status messages in
   statusBox = blessed.text({
     top: mapDisplay.height,
     height: 1,
-    content: "READY"
+    content: 'READY',
   });
   screen.append(statusBox);
   instructionBox = blessed.text({
     top: +mapDisplay.height + +statusBox.height,
-    content: "Press SPACE to start.\nPress . to step."
+    content: 'Press SPACE to start.\nPress . to step.',
   });
   screen.append(instructionBox);
 
   // Quit on Escape, q, or Control-C.
-  screen.key(["escape", "q", "C-c"], function(ch, key) {
+  screen.key(['escape', 'q', 'C-c'], function(ch, key) {
     return process.exit(0);
   });
 
-  screen.key(["p", "space"], function(ch, key) {
+  screen.key(['p', 'space'], function(ch, key) {
     if (isGamePaused) {
-      instructionBox.setContent("Press SPACE to pause.");
-      statusBox.setContent("Solving...");
+      instructionBox.setContent('Press SPACE to pause.');
+      statusBox.setContent('Solving...');
       isGamePaused = false;
       timers.setImmediate(mainProgramLoop);
     } else {
-      instructionBox.setContent("Press SPACE to start.\nPress . to step.");
-      statusBox.setContent("PAUSED");
+      instructionBox.setContent('Press SPACE to start.\nPress . to step.');
+      statusBox.setContent('PAUSED');
       isGamePaused = true;
     }
   });
 
-  screen.key(["."], function(ch, key) {
+  screen.key(['.'], function(ch, key) {
     if (isGamePaused) {
       screen.render();
       timers.setImmediate(mainProgramLoop);
     }
   });
 
-  screen.key(["b"], function(ch, key) {
+  screen.key(['b'], function(ch, key) {
     if (isGamePaused) {
       // Manually backing out of a bad route
       steps.pop();
@@ -132,13 +131,13 @@ if (interactiveMode) {
   screen.render();
 } else {
   screen = {
-    render: function() {}
+    render: function() {},
   };
   mapDisplay = {
     setContent: function(content) {
       this.content = content;
     },
-    content: ""
+    content: '',
   };
   statusBox = {
     PRINT_INTERVAL: 100000,
@@ -149,10 +148,10 @@ if (interactiveMode) {
         this.sinceLastPrint = 0;
       }
       this.sinceLastPrint++;
-    }
+    },
   };
   instructionBox = {
-    setContent: function() {}
+    setContent: function() {},
   };
 }
 
@@ -176,11 +175,11 @@ if (!interactiveMode) {
 function mainProgramLoop() {
   i++;
   if (curStep.isWin()) {
-    instructionBox.setContent("Press q to exit.");
-    statusBox.setContent("Solved!");
+    instructionBox.setContent('Press q to exit.');
+    statusBox.setContent('Solved!');
     screen.render();
     if (!interactiveMode) {
-      console.log("Solved!");
+      console.log('Solved!');
       console.log(mapDisplay.content);
     }
     return;
@@ -221,19 +220,19 @@ function mainProgramLoop() {
     let arrow;
     switch (moveThisWay.toString()) {
       case FACINGS.NORTH.toString():
-        arrow = "^";
+        arrow = '^';
         break;
       case FACINGS.EAST.toString():
-        arrow = ">";
+        arrow = '>';
         break;
       case FACINGS.SOUTH.toString():
-        arrow = "v";
+        arrow = 'v';
         break;
       case FACINGS.WEST.toString():
-        arrow = "<";
+        arrow = '<';
         break;
       default:
-        arrow = "?";
+        arrow = '?';
     }
     nextStep.drawOnRoute(curStep.cell, arrow);
     statusBox.setContent(`${i} : ${curStep.cell.toString()}`);

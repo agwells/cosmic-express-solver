@@ -5,7 +5,18 @@
   "main": "cesolver.js",
   "author": "Aaron Wells",
   "license": "MIT",
+  "scripts": {
+    "format": "prettier --write cesolver.js 'src/**/*.js'"
+  },
   "dependencies": {
     "blessed": "^0.1.81"
+  },
+  "devDependencies": {
+    "prettier": "^1.14.2"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "es5",
+    "arrowParens": "always"
   }
 }

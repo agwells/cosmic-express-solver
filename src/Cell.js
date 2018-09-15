@@ -1,4 +1,4 @@
-const { CELLTYPE, FACINGS } = require("./constants");
+const { CELLTYPE, FACINGS } = require('./constants');
 class Cell {
   constructor(gameMap, x, y) {
     this.gameMap = gameMap;
@@ -37,13 +37,13 @@ class Cell {
 
   getNextCell(facing) {
     var cachedCell = this.adjacentCellCache.get(facing);
-    if (typeof cachedCell !== "undefined") {
+    if (typeof cachedCell !== 'undefined') {
       return cachedCell;
     }
 
     var nextCell = this.gameMap.getCellAt([
       this.x + parseInt(facing[0]),
-      this.y + parseInt(facing[1])
+      this.y + parseInt(facing[1]),
     ]);
     var result;
     switch (nextCell.getContent()) {
@@ -78,7 +78,7 @@ class Cell {
     }
 
     var result = [];
-    FACINGS.ALL.forEach(facing => {
+    FACINGS.ALL.forEach((facing) => {
       var nextCell = this.getNextCell(facing);
       if (nextCell.isNavigable()) {
         result.push(nextCell);

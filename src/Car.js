@@ -1,4 +1,4 @@
-const { CELLTYPE } = require("./constants");
+const { CELLTYPE } = require('./constants');
 
 class Car {
   constructor(prevState) {

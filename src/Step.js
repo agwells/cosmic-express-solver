@@ -1,5 +1,5 @@
-const { CELLTYPE, FACINGS } = require("./constants");
-const Car = require("./Car");
+const { CELLTYPE, FACINGS } = require('./constants');
+const Car = require('./Car');
 
 class Step {
   constructor(gameMap, pos, prevStep, startDir) {
@@ -41,7 +41,7 @@ class Step {
     }
 
     // Draw an X to represent our current location
-    this.drawOnRoute(this.cell, "X");
+    this.drawOnRoute(this.cell, 'X');
     this.availableDirections = [];
 
     // Determine which directions are available
@@ -52,7 +52,7 @@ class Step {
           FACINGS.NORTH,
           FACINGS.EAST,
           FACINGS.SOUTH,
-          FACINGS.WEST
+          FACINGS.WEST,
         ];
         break;
       case FACINGS.EAST.toString():
@@ -60,7 +60,7 @@ class Step {
           FACINGS.EAST,
           FACINGS.SOUTH,
           FACINGS.WEST,
-          FACINGS.NORTH
+          FACINGS.NORTH,
         ];
         break;
       case FACINGS.SOUTH.toString():
@@ -68,7 +68,7 @@ class Step {
           FACINGS.SOUTH,
           FACINGS.WEST,
           FACINGS.NORTH,
-          FACINGS.EAST
+          FACINGS.EAST,
         ];
         break;
       case FACINGS.WEST.toString():
@@ -76,7 +76,7 @@ class Step {
           FACINGS.WEST,
           FACINGS.NORTH,
           FACINGS.EAST,
-          FACINGS.SOUTH
+          FACINGS.SOUTH,
         ];
         break;
       default:
@@ -84,7 +84,7 @@ class Step {
           FACINGS.WEST,
           FACINGS.NORTH,
           FACINGS.EAST,
-          FACINGS.SOUTH
+          FACINGS.SOUTH,
         ];
     }
     for (let f = 0; f < facingsToTry.length; f++) {
@@ -144,7 +144,7 @@ class Step {
             ) {
               this.isPassengerChange = true;
               car.occupant = Car.EMPTY;
-              this.drawOnRoute(c, "@");
+              this.drawOnRoute(c, '@');
               this.emptyHouses.splice(idx, 1);
               // Only one alien per house.
               break;
@@ -181,7 +181,7 @@ class Step {
               this.isPassengerChange = true;
               car.occupant = c.getContent();
               this.aliens.splice(idx, 1);
-              this.drawOnRoute(c, "_");
+              this.drawOnRoute(c, '_');
 
               // Only one alien per car. So we can stop checking
               // additional squares.
@@ -240,7 +240,7 @@ class Step {
     // pursuing that further, because it's equivalent to another shorter
     // path we haven't pursued yet.
     let self = this;
-    return this.stepsSinceLastPassengerChange.some(oldStep => {
+    return this.stepsSinceLastPassengerChange.some((oldStep) => {
       return (
         oldStep !== self.prevStep &&
         self.cell.getAdjacentNavigableCells().includes(oldStep.cell)
@@ -257,7 +257,7 @@ class Step {
     // Make a list of every known contiguous region on the map (initially empty)
     var regions = [];
     // Scan every empty cell (and my location, and the exit cell) in the map
-    this.gameMap.navigableCells.forEach(cell => {
+    this.gameMap.navigableCells.forEach((cell) => {
       // Exclude filled cells (except the currently occupied one)
       // TODO: to work with two cars, we need to check the progress one
       // turn back.
@@ -267,15 +267,15 @@ class Step {
 
       var adjCells = cell.getAdjacentNavigableCells();
       adjCells = adjCells.filter(
-        adjCell => !this.prevStep.filledCells.includes(adjCell)
+        (adjCell) => !this.prevStep.filledCells.includes(adjCell)
       );
 
       // Check whether this cell is adjacent to any cell in any of the
       // known contiguous regions
       var inTheseRegions = [];
       if (adjCells.length) {
-        inTheseRegions = regions.filter(region =>
-          adjCells.some(adjCell => region.includes(adjCell))
+        inTheseRegions = regions.filter((region) =>
+          adjCells.some((adjCell) => region.includes(adjCell))
         );
       }
       switch (inTheseRegions.length) {
@@ -300,7 +300,9 @@ class Step {
       }
     });
 
-    var myRegion = regions.find(region => region.includes(this.prevStep.cell));
+    var myRegion = regions.find((region) =>
+      region.includes(this.prevStep.cell)
+    );
 
     // Find which region contains the exit cell
     if (!myRegion.includes(this.gameMap.exitPos)) {
@@ -316,13 +318,13 @@ class Step {
     var housesAndAliens = this.aliens.concat(this.emptyHouses);
 
     // For each house/alien...
-    return housesAndAliens.every(cellToCheckReachable => {
+    return housesAndAliens.every((cellToCheckReachable) => {
       return (
         cellToCheckReachable
           // ... check each cell next to it ...
           .getAdjacentNavigableCells()
           // ... and see if any of them ...
-          .some(cellNextToHouse => {
+          .some((cellNextToHouse) => {
             // ... are present in the same contiguous region
             // as my position last turn.
             return myRegion.includes(cellNextToHouse);
