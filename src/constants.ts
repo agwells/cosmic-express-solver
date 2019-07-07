@@ -1,7 +1,7 @@
 /**
  * Glyphs on the map.
  */
-const CELLTYPE = {
+export const CELLTYPE = {
   EMPTY: '.',
   WALL: '#',
   CROSSING: '+',
@@ -26,7 +26,7 @@ const CELLTYPE = {
   HINT_WEST_SOUTH: '7',
 };
 
-const FACINGS = {
+export const FACINGS = {
   NORTH: [0, -1],
   EAST: [1, 0],
   SOUTH: [0, 1],
@@ -36,14 +36,8 @@ const FACINGS = {
 
 FACINGS.ALL = [FACINGS.NORTH, FACINGS.EAST, FACINGS.SOUTH, FACINGS.WEST];
 
-var FACING_STRINGS = new Map();
+export const FACING_STRINGS = new Map();
 FACING_STRINGS.set(FACINGS.NORTH, 'north');
 FACING_STRINGS.set(FACINGS.EAST, 'east');
 FACING_STRINGS.set(FACINGS.SOUTH, 'south');
 FACING_STRINGS.set(FACINGS.WEST, 'west');
-
-module.exports = {
-  CELLTYPE,
-  FACINGS,
-  FACING_STRINGS,
-};

@@ -1,7 +1,7 @@
-const { CELLTYPE, FACINGS } = require('./constants');
-const Car = require('./Car');
+import  { CELLTYPE, FACINGS } = from './constants';
+import { Car } from './Car';
 
-class Step {
+export class Step {
   constructor(gameMap, pos, prevStep, startDir) {
     this.gameMap = gameMap;
     this.cell = pos;

@@ -1,8 +1,8 @@
-const fs = require('fs');
-const Cell = require('./Cell');
-const { CELLTYPE } = require('./constants');
+import fs from 'fs';
+import { Cell } from './Cell';
+import { CELLTYPE } from './constants';
 
-class GameMap {
+export class GameMap {
   /**
    *
    * @param {string} file The file to parse the game map from.
@@ -139,5 +139,3 @@ class GameMap {
     }
   }
 }
-
-module.exports = GameMap;

@@ -1,5 +1,6 @@
-const { CELLTYPE, FACINGS } = require('./constants');
-class Cell {
+import { CELLTYPE, FACINGS } from './constants';
+
+export class Cell {
   constructor(gameMap, x, y) {
     this.gameMap = gameMap;
     this.x = x;
@@ -111,5 +112,3 @@ class Cell {
     return false;
   }
 }
-
-module.exports = Cell;

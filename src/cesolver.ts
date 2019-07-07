@@ -1,12 +1,12 @@
 #! /usr/bin/env node
 
-const blessed = require('blessed');
-const os = require('os');
-const timers = require('timers');
+import blessed from 'blessed';
+import os from 'os';
+import timers from 'timers';
 
-const { FACINGS } = require('./src/constants');
-const GameMap = require('./src/GameMap');
-const Step = require('./src/Step');
+const { FACINGS } = require('./constants');
+const GameMap = require('./GameMap');
+const Step = require('./Step');
 
 /**
  * Process command-line flags
