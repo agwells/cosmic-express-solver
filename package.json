@@ -10,7 +10,8 @@
     "lint": "eslint cesolver.js 'src/**/*.js'"
   },
   "dependencies": {
-    "blessed": "^0.1.81"
+    "blessed": "^0.1.81",
+    "typescript": "^3.5.2"
   },
   "devDependencies": {
     "eslint": "^5.6.0",
