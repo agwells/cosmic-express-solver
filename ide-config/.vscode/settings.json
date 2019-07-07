@@ -1,0 +1,24 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+  "files.exclude": {
+    "node_modules": true
+  },
+  "problems.autoReveal": false,
+  "editor.acceptSuggestionOnEnter": "smart",
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": true,
+    "strings": false
+},
+"editor.minimap.enabled": false,
+"workbench.statusBar.feedback.visible": false,
+"breadcrumbs.enabled": true,
+"workbench.editor.enablePreview": false,
+"workbench.editor.enablePreviewFromQuickOpen": false,
+"workbench.editor.revealIfOpen": true,
+"workbench.editor.tabSizing": "shrink",
+"window.title": "${dirty}${rootName}${separator}${activeEditorMedium}",
+"javascript.format.enable": false,
+"javascript.validate.enable": false,
+"typescript.validate.enable": false
+}
