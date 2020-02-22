@@ -1,4 +1,4 @@
-import  { CELLTYPE, FACINGS } = from './constants';
+import { CELLTYPE, FACINGS } from './constants';
 import { Car } from './Car';
 
 export class Step {
