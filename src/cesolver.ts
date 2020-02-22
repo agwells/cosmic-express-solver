@@ -4,20 +4,20 @@ import blessed from 'blessed';
 import os from 'os';
 import timers from 'timers';
 
-const { FACINGS } = require('./constants');
-const GameMap = require('./GameMap');
-const Step = require('./Step');
+import { FACINGS, CELLTYPE } from './constants';
+import { GameMap } from './GameMap';
+import { Step } from './Step';
 
 /**
  * Process command-line flags
  */
-var badArgs = false;
+let badArgs = false;
 if (process.argv.length < 3) {
   badArgs = true;
 }
 
-var interactiveMode = true;
-var mapfile;
+let interactiveMode = true;
+let mapfile = '';
 if (process.argv[2] === '--non-interactive' || process.argv[2] === '-I') {
   interactiveMode = false;
   if (process.argv.length < 4) {
@@ -29,27 +29,32 @@ if (process.argv[2] === '--non-interactive' || process.argv[2] === '-I') {
   mapfile = process.argv[2];
 }
 
-if (badArgs) {
+if (badArgs || !mapfile) {
   console.error('Usage: cesolver.js [--non-interactive|-I] MAPFILE');
   process.exit(1);
 }
 const gameMap = new GameMap(mapfile);
 
 // Starting state
-var steps = [
+const steps = [
   // TODO: Maybe some smarter handling of the starting facing?
   new Step(gameMap, gameMap.startingPos),
 ];
 
-var curStep = steps[0];
-var i = 0;
-var lastRender = os.uptime();
+let curStep = steps[0];
+let i = 0;
+let lastRender = os.uptime();
 
 /**
  * Set up terminal display
  */
-var screen, mapDisplay, statusBox, instructionBox;
-var isGamePaused = true;
+let screen: blessed.Widgets.Screen;
+let mapDisplay: blessed.Widgets.BoxElement;
+let instructionBox: blessed.Widgets.TextElement;
+let isGamePaused = true;
+let statusBox: blessed.Widgets.TextElement;
+let sinceLastStatusPrint = 0;
+const STATUS_PRINT_INTERVAL = 100000;
 if (interactiveMode) {
   screen = blessed.screen({
     fastCSR: true,
@@ -111,9 +116,6 @@ if (interactiveMode) {
         `${i} : ${curStep.cell.toString()} : Manually backing up.`
       );
       if (steps.length == 0) {
-        if (!interactiveMode) {
-          statusBox.sinceLastPrint = statusBox.PRINT_INTERVAL;
-        }
         statusBox.setContent(
           `ERROR: After ${i} iterations, no more steps available.`
         );
@@ -132,27 +134,25 @@ if (interactiveMode) {
 } else {
   screen = {
     render: function() {},
-  };
+  } as any;
   mapDisplay = {
-    setContent: function(content) {
+    setContent: function(content: string) {
       this.content = content;
     },
     content: '',
-  };
+  } as any;
   statusBox = {
-    PRINT_INTERVAL: 100000,
-    sinceLastPrint: 100000,
-    setContent: function(content) {
-      if (this.sinceLastPrint === this.PRINT_INTERVAL) {
+    setContent: function(content: string) {
+      if (sinceLastStatusPrint === STATUS_PRINT_INTERVAL) {
         console.log(content);
-        this.sinceLastPrint = 0;
+        sinceLastStatusPrint = 0;
       }
-      this.sinceLastPrint++;
+      sinceLastStatusPrint++;
     },
-  };
+  } as any;
   instructionBox = {
     setContent: function() {},
-  };
+  } as any;
 }
 
 /**
@@ -172,7 +172,7 @@ if (!interactiveMode) {
  *
  * @returns {void}
  */
-function mainProgramLoop() {
+function mainProgramLoop(): void {
   i++;
   if (curStep.isWin()) {
     instructionBox.setContent('Press q to exit.');
@@ -194,7 +194,7 @@ function mainProgramLoop() {
     );
     if (steps.length == 0) {
       if (!interactiveMode) {
-        statusBox.sinceLastPrint = statusBox.PRINT_INTERVAL;
+        sinceLastStatusPrint = STATUS_PRINT_INTERVAL;
       }
       statusBox.setContent(
         `ERROR: After ${i} iterations, no more steps available.`
@@ -205,34 +205,34 @@ function mainProgramLoop() {
     }
     curStep = steps[steps.length - 1];
     mapDisplay.setContent(curStep.route);
+    screen.render();
     //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
   } else {
     // Step in the first direction.
     // Remove that direction from the list of available directions so we
     // don't have to try it again.
-    let moveThisWay = curStep.availableDirections.shift();
-    let nextPos = curStep.cell.getNextCell(moveThisWay);
+    const moveThisWay = curStep.availableDirections.shift()!;
+    const nextPos = curStep.cell.getNextCell(moveThisWay);
     //        console.log(`Moving ${FACING_STRINGS.get(moveThisWay)} to ${nextPos}`);
-    let nextStep = new Step(gameMap, nextPos, curStep, moveThisWay);
+    const nextStep = new Step(gameMap, nextPos, curStep, moveThisWay);
     steps.push(nextStep);
 
     // Update the curses map
-    let arrow;
-    switch (moveThisWay.toString()) {
-      case FACINGS.NORTH.toString():
-        arrow = '^';
+    let arrow: CELLTYPE;
+    switch (moveThisWay) {
+      case FACINGS.NORTH:
+        arrow = CELLTYPE.ROUTE_NORTH;
         break;
-      case FACINGS.EAST.toString():
-        arrow = '>';
+      case FACINGS.EAST:
+        arrow = CELLTYPE.ROUTE_EAST;
         break;
-      case FACINGS.SOUTH.toString():
-        arrow = 'v';
-        break;
-      case FACINGS.WEST.toString():
-        arrow = '<';
+      case FACINGS.SOUTH:
+        arrow = CELLTYPE.ROUTE_SOUTH;
         break;
       default:
-        arrow = '?';
+      case FACINGS.WEST:
+        arrow = CELLTYPE.ROUTE_WEST;
+        break;
     }
     nextStep.drawOnRoute(curStep.cell, arrow);
     statusBox.setContent(`${i} : ${curStep.cell.toString()}`);
@@ -241,10 +241,11 @@ function mainProgramLoop() {
   mapDisplay.setContent(curStep.route);
 
   // Tell the screen to render once a second
-  if (os.uptime() > lastRender) {
-    lastRender = os.uptime();
-    screen.render();
-  }
+  // if (os.uptime() > lastRender) {
+  //   lastRender = os.uptime();
+  //   screen.render();
+  // }
+  //  screen.render();
 
   if (isGamePaused) {
     // Wait for user input to continue

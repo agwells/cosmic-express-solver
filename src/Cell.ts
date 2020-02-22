@@ -1,7 +1,15 @@
-import { CELLTYPE, FACINGS } from './constants';
+import { CELLTYPE, FACINGS, Facing } from './constants';
+import { GameMap } from 'GameMap';
 
 export class Cell {
-  constructor(gameMap, x, y) {
+  gameMap: GameMap;
+  x: number;
+  y: number;
+  outOfBounds: boolean;
+  adjacentCellCache: Map<Facing, Cell>;
+  adjacentNavCellCache: false | Cell[];
+
+  constructor(gameMap: GameMap, x: number, y: number) {
     this.gameMap = gameMap;
     this.x = x;
     this.y = y;
@@ -21,32 +29,28 @@ export class Cell {
    *
    * @memberof Cell
    */
-  getContent() {
+  getContent(): CELLTYPE | false {
     if (this.outOfBounds) {
       return false;
     }
-    return this.gameMap.getCharAt(this.x, this.y);
+    return this.gameMap.getCharAt(this.x, this.y) as CELLTYPE;
   }
 
-  toString() {
+  toString(): string {
     return `${this.x},${this.y}`;
   }
 
-  toStringObj() {
-    return new String(this.toString());
-  }
-
-  getNextCell(facing) {
-    var cachedCell = this.adjacentCellCache.get(facing);
-    if (typeof cachedCell !== 'undefined') {
+  getNextCell(facing: Facing): Cell {
+    const cachedCell = this.adjacentCellCache.get(facing);
+    if (cachedCell) {
       return cachedCell;
     }
 
-    var nextCell = this.gameMap.getCellAt([
-      this.x + parseInt(facing[0]),
-      this.y + parseInt(facing[1]),
+    const nextCell = this.gameMap.getCellAt([
+      this.x + facing[0],
+      this.y + facing[1],
     ]);
-    var result;
+    let result: Cell;
     switch (nextCell.getContent()) {
       case CELLTYPE.CROSSING:
         // If it's a crossing, we basically skip it over and look
@@ -75,28 +79,28 @@ export class Cell {
     return result;
   }
 
-  getAdjacentNavigableCells() {
-    if (this.adjacentNavCellCache !== false) {
-      return this.adjacentNavCellCache;
+  getAdjacentNavigableCells(): Cell[] {
+    if (!this.adjacentNavCellCache) {
+      this.adjacentNavCellCache = Object.values(FACINGS).reduce(
+        (acc: Cell[], facing) => {
+          const nextCell = this.getNextCell(facing);
+          if (nextCell.isNavigable()) {
+            return acc.concat(nextCell);
+          } else {
+            return acc;
+          }
+        },
+        []
+      );
     }
-
-    var result = [];
-    FACINGS.ALL.forEach((facing) => {
-      var nextCell = this.getNextCell(facing);
-      if (nextCell.isNavigable()) {
-        result.push(nextCell);
-      }
-    });
-    // @ts-ignore
-    this.adjacentNavCellCache = result;
-    return result;
+    return this.adjacentNavCellCache;
   }
 
-  isOutOfBounds() {
+  isOutOfBounds(): boolean {
     return this.outOfBounds;
   }
 
-  isNavigable() {
+  isNavigable(): boolean {
     if (this.outOfBounds) {
       return false;
     }

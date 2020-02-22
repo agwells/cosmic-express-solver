@@ -3,19 +3,34 @@ import { Cell } from './Cell';
 import { CELLTYPE } from './constants';
 
 export class GameMap {
+  cellcache: Map<string, Cell>;
+  height: number;
+  width: number;
+  numberOfCars: number;
+  navigableCells: Cell[];
+  startingPos: Cell;
+  exitPos: Cell;
+  warps: Cell[];
+  aliens: Cell[];
+  houses: Cell[];
+  hintCells: Cell[];
+  rawmap: string;
+
   /**
    *
    * @param {string} file The file to parse the game map from.
    */
-  constructor(file) {
+  constructor(file: string) {
     this.cellcache = new Map();
 
     this.height = 0;
     this.width = 0;
     this.numberOfCars = 1;
     this.navigableCells = [];
-    this.startingPos = undefined;
-    this.exitPos = undefined;
+    // HACK: need to give these initial values to satisfy TS
+    this.startingPos = undefined as any;
+    this.exitPos = undefined as any;
+
     // TODO: support for more than one pair of warps
     // ... wait, *are* there any levels with more than one pair
     // of warps?
@@ -33,7 +48,7 @@ export class GameMap {
 
     // Find out the size of the map
     {
-      let lines = this.rawmap.split('\n');
+      const lines = this.rawmap.split('\n');
       this.height = lines.length;
       this.width = lines[0].length;
       // Validate that the map is properly rectangular
@@ -49,7 +64,7 @@ export class GameMap {
     // Locate special cells
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        let pos = this.getCellAt([x, y]);
+        const pos = this.getCellAt([x, y]);
         switch (this.getCharAt(x, y)) {
           case CELLTYPE.EXIT:
             this.exitPos = pos;
@@ -114,16 +129,16 @@ export class GameMap {
    * @returns {string}
    * @memberof GameMap
    */
-  getCharAt(x, y) {
+  getCharAt(x: number, y: number): string {
     return this.rawmap.charAt(x + y * (this.width + 1));
   }
 
-  getCellAt(pos) {
-    let x, y, posStr;
+  getCellAt(pos: [number, number] | string): Cell {
+    let x, y, posStr: string;
     if (Array.isArray(pos)) {
       [x, y] = pos;
       posStr = `${x},${y}`;
-    } else if (arguments.length == 1) {
+    } else {
       [x, y] = pos.split(',');
       x = parseInt(x);
       y = parseInt(y);
@@ -131,9 +146,9 @@ export class GameMap {
     }
 
     if (this.cellcache.has(posStr)) {
-      return this.cellcache.get(posStr);
+      return this.cellcache.get(posStr)!;
     } else {
-      var c = new Cell(this, x, y);
+      const c = new Cell(this, x, y);
       this.cellcache.set(posStr, c);
       return c;
     }

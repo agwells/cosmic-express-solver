@@ -1,8 +1,28 @@
-import { CELLTYPE, FACINGS } from './constants';
+import { CELLTYPE, FACINGS, Facing, Alien, ALL_FACINGS } from './constants';
 import { Car } from './Car';
+import { GameMap } from 'GameMap';
+import { Cell } from 'Cell';
 
 export class Step {
-  constructor(gameMap, pos, prevStep, startDir) {
+  gameMap: GameMap;
+  readonly cell: Cell;
+  readonly prevStep: Step | null;
+  readonly startDir: Facing;
+  cars: Car[];
+  route: string;
+  aliens: Cell[];
+  emptyHouses: Cell[];
+  filledCells: Cell[];
+  stepsSinceLastPassengerChange: Step[];
+  availableDirections: Facing[];
+  isPassengerChange: boolean;
+
+  constructor(
+    gameMap: GameMap,
+    pos: Cell,
+    prevStep: Step | null = null,
+    startDir: Facing = FACINGS.WEST
+  ) {
     this.gameMap = gameMap;
     this.cell = pos;
     this.prevStep = prevStep;
@@ -12,7 +32,7 @@ export class Step {
     }
     this.cars = [];
     if (prevStep) {
-      this.route = new String(prevStep.route);
+      this.route = prevStep.route;
       this.aliens = prevStep.aliens.slice();
       this.emptyHouses = prevStep.emptyHouses.slice();
       for (let i = 0; i < gameMap.numberOfCars; i++) {
@@ -27,10 +47,10 @@ export class Step {
 
       // A list of the steps we've taken since we last loaded or unloaded
       // an alien. We can use this to identify useless solution spaces.
-      this.stepsSinceLastPassengerChange = this.prevStep.stepsSinceLastPassengerChange.slice();
-      this.stepsSinceLastPassengerChange.push(this.prevStep);
+      this.stepsSinceLastPassengerChange = prevStep.stepsSinceLastPassengerChange.slice();
+      this.stepsSinceLastPassengerChange.push(prevStep);
     } else {
-      this.route = new String(gameMap.rawmap);
+      this.route = gameMap.rawmap;
       this.aliens = gameMap.aliens.slice();
       this.emptyHouses = gameMap.houses.slice();
       for (let i = 0; i < gameMap.numberOfCars; i++) {
@@ -41,13 +61,13 @@ export class Step {
     }
 
     // Draw an X to represent our current location
-    this.drawOnRoute(this.cell, 'X');
+    this.drawOnRoute(this.cell, CELLTYPE.CURRENT_LOCATION);
     this.availableDirections = [];
 
     // Determine which directions are available
-    var facingsToTry = [];
-    switch (this.startDir.toString()) {
-      case FACINGS.NORTH.toString():
+    let facingsToTry: Facing[] = [];
+    switch (this.startDir) {
+      case FACINGS.NORTH:
         facingsToTry = [
           FACINGS.NORTH,
           FACINGS.EAST,
@@ -55,7 +75,7 @@ export class Step {
           FACINGS.WEST,
         ];
         break;
-      case FACINGS.EAST.toString():
+      case FACINGS.EAST:
         facingsToTry = [
           FACINGS.EAST,
           FACINGS.SOUTH,
@@ -63,7 +83,7 @@ export class Step {
           FACINGS.NORTH,
         ];
         break;
-      case FACINGS.SOUTH.toString():
+      case FACINGS.SOUTH:
         facingsToTry = [
           FACINGS.SOUTH,
           FACINGS.WEST,
@@ -71,7 +91,7 @@ export class Step {
           FACINGS.EAST,
         ];
         break;
-      case FACINGS.WEST.toString():
+      case FACINGS.WEST:
         facingsToTry = [
           FACINGS.WEST,
           FACINGS.NORTH,
@@ -79,17 +99,10 @@ export class Step {
           FACINGS.SOUTH,
         ];
         break;
-      default:
-        facingsToTry = [
-          FACINGS.WEST,
-          FACINGS.NORTH,
-          FACINGS.EAST,
-          FACINGS.SOUTH,
-        ];
     }
     for (let f = 0; f < facingsToTry.length; f++) {
-      let facing = facingsToTry[f];
-      var c = this.cell.getNextCell(facing);
+      const facing = facingsToTry[f];
+      const c = this.cell.getNextCell(facing);
       if (c.isNavigable() && !this.filledCells.includes(c)) {
         // // Random!
         // if (Math.random() > 0.5) {
@@ -108,8 +121,8 @@ export class Step {
 
     // Update car states
     for (let i = 0; i < gameMap.numberOfCars; i++) {
-      let car = this.cars[i];
-      let carPos;
+      const car = this.cars[i];
+      let carPos: Cell;
       // TODO: general-purpose solution for more than three cars?
       switch (i) {
         case 0:
@@ -124,6 +137,7 @@ export class Step {
           }
           break;
         case 2:
+        default:
           if (prevStep && prevStep.prevStep) {
             carPos = prevStep.prevStep.cell;
           } else {
@@ -133,18 +147,18 @@ export class Step {
       }
 
       // See if any adjacent cells have a matching house
-      if (car.occupant !== Car.EMPTY) {
-        for (let j = 0; j < FACINGS.ALL.length; j++) {
-          let c = carPos.getNextCell(FACINGS.ALL[j]);
-          let idx = this.emptyHouses.indexOf(c);
+      if (car.occupant) {
+        for (let j = 0; j < 4; j++) {
+          const c = carPos.getNextCell(ALL_FACINGS[j]);
+          const idx = this.emptyHouses.indexOf(c);
           if (idx > -1) {
             if (
               c.getContent() === car.occupant.toLowerCase() ||
               c.getContent() === CELLTYPE.WILDCARD_HOUSE
             ) {
               this.isPassengerChange = true;
-              car.occupant = Car.EMPTY;
-              this.drawOnRoute(c, '@');
+              car.occupant = null;
+              this.drawOnRoute(c, CELLTYPE.FILLED_HOUSE);
               this.emptyHouses.splice(idx, 1);
               // Only one alien per house.
               break;
@@ -157,10 +171,10 @@ export class Step {
       // (Note that boarding happens after de-boarding, so that one
       // alien can leave a car, and another board the car, in the same
       // turn.)
-      if (car.occupant === Car.EMPTY) {
-        for (let j = 0; j < FACINGS.ALL.length; j++) {
-          let c = carPos.getNextCell(FACINGS.ALL[j]);
-          let idx = this.aliens.indexOf(c);
+      if (!car.occupant) {
+        for (let j = 0; j < 4; j++) {
+          const c = carPos.getNextCell(ALL_FACINGS[j]);
+          const idx = this.aliens.indexOf(c);
           if (idx > -1) {
             let boarded = false;
             switch (c.getContent()) {
@@ -179,9 +193,9 @@ export class Step {
             }
             if (boarded) {
               this.isPassengerChange = true;
-              car.occupant = c.getContent();
+              car.occupant = c.getContent() as Alien;
               this.aliens.splice(idx, 1);
-              this.drawOnRoute(c, '_');
+              this.drawOnRoute(c, CELLTYPE.MOVED_ALIEN);
 
               // Only one alien per car. So we can stop checking
               // additional squares.
@@ -202,23 +216,22 @@ export class Step {
     }
   }
 
-  drawOnRoute(cell, char) {
-    var stringIdx = cell.x + (this.gameMap.width + 1) * cell.y;
+  drawOnRoute(cell: Cell, char: CELLTYPE): void {
+    const stringIdx = cell.x + (this.gameMap.width + 1) * cell.y;
     this.route =
       this.route.slice(0, stringIdx) + char + this.route.slice(stringIdx + 1);
   }
 
-  isDeadEnd() {
+  isDeadEnd(): boolean {
     return (
-      !this.isWin() &&
-      (this.availableDirections.length === 0 ||
-        this.isRedundantPath() ||
-        !this.areAllVitalCellsReachable() ||
-        this.cell.getContent() === CELLTYPE.EXIT)
+      this.availableDirections.length === 0 ||
+      this.isRedundantPath() ||
+      !this.areAllVitalCellsReachable() ||
+      this.cell.getContent() === CELLTYPE.EXIT
     );
   }
 
-  isWin() {
+  isWin(): boolean {
     return (
       this.cell.getContent() === CELLTYPE.EXIT &&
       this.aliens.length === 0 &&
@@ -226,7 +239,7 @@ export class Step {
     );
   }
 
-  undo() {
+  undo(): void {
     // var i = Step.filledCells.indexOf(this.cell);
     // if (i > -1) {
     //     Step.filledCells.splice(i, 1);
@@ -235,55 +248,50 @@ export class Step {
     // }
   }
 
-  isRedundantPath() {
+  isRedundantPath(): boolean {
     // The path doubles back on itself without doing anything. No point
     // pursuing that further, because it's equivalent to another shorter
     // path we haven't pursued yet.
-    let self = this;
-    return this.stepsSinceLastPassengerChange.some((oldStep) => {
-      return (
-        oldStep !== self.prevStep &&
-        self.cell.getAdjacentNavigableCells().includes(oldStep.cell)
-      );
-    });
+    return this.stepsSinceLastPassengerChange.some(
+      (oldStep) =>
+        oldStep !== this.prevStep &&
+        this.cell.getAdjacentNavigableCells().includes(oldStep.cell)
+    );
   }
 
-  areAllVitalCellsReachable() {
+  areAllVitalCellsReachable(): boolean {
     // First turn, everything will be reachable.
-    if (!this.prevStep) {
+    const prevStep = this.prevStep;
+
+    if (!prevStep) {
       return true;
     }
 
     // Make a list of every known contiguous region on the map (initially empty)
-    var regions = [];
+    const regions: Cell[][] = [];
     // Scan every empty cell (and my location, and the exit cell) in the map
     this.gameMap.navigableCells.forEach((cell) => {
       // Exclude filled cells (except the currently occupied one)
       // TODO: to work with two cars, we need to check the progress one
       // turn back.
-      if (this.prevStep.filledCells.includes(cell)) {
+      if (prevStep.filledCells.includes(cell)) {
         return;
       }
 
-      var adjCells = cell.getAdjacentNavigableCells();
-      adjCells = adjCells.filter(
-        (adjCell) => !this.prevStep.filledCells.includes(adjCell)
-      );
+      const adjCells = cell
+        .getAdjacentNavigableCells()
+        .filter((adjCell) => !prevStep.filledCells.includes(adjCell));
 
       // Check whether this cell is adjacent to any cell in any of the
       // known contiguous regions
-      var inTheseRegions = [];
-      if (adjCells.length) {
-        inTheseRegions = regions.filter((region) =>
-          adjCells.some((adjCell) => region.includes(adjCell))
-        );
-      }
+      const inTheseRegions = regions.filter((region) =>
+        adjCells.some((adjCell) => region.includes(adjCell))
+      );
       switch (inTheseRegions.length) {
         case 0:
           {
             // Not in any known region yet. Start a new one.
-            let newRegion = [cell];
-            regions.push(newRegion);
+            regions.push([cell]);
           }
           break;
         case 1:
@@ -292,20 +300,17 @@ export class Step {
           break;
         default: // In more than one. Join them together.
         {
-          let mergeRegion = inTheseRegions[0];
+          const mergeRegion = inTheseRegions[0];
           mergeRegion.push(cell);
           for (let i = 1; i < inTheseRegions.length; i++) {
             mergeRegion.splice(mergeRegion.length, 0, ...inTheseRegions[i]);
-            let idx = regions.indexOf(inTheseRegions[i]);
-            regions.splice(idx, 1);
+            regions.splice(regions.indexOf(inTheseRegions[i]), 1);
           }
         }
       }
     });
 
-    var myRegion = regions.find((region) =>
-      region.includes(this.prevStep.cell)
-    );
+    const myRegion = regions.find((region) => region.includes(prevStep.cell))!;
 
     // Find which region contains the exit cell
     if (!myRegion.includes(this.gameMap.exitPos)) {
@@ -318,7 +323,7 @@ export class Step {
     // with the blockages from LAST TURN. This gives us a one-turn lag time
     // for the trailing car to catch up.
     // TODO: probably a better way to do that.
-    var housesAndAliens = this.aliens.concat(this.emptyHouses);
+    const housesAndAliens = this.aliens.concat(this.emptyHouses);
 
     // For each house/alien...
     return housesAndAliens.every((cellToCheckReachable) => {
@@ -336,5 +341,3 @@ export class Step {
     });
   }
 }
-
-module.exports = Step;
