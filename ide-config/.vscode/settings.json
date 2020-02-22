@@ -20,5 +20,9 @@
 "window.title": "${dirty}${rootName}${separator}${activeEditorMedium}",
 "javascript.format.enable": false,
 "javascript.validate.enable": false,
-"typescript.validate.enable": false
+"typescript.disableAutomaticTypeAcquisition": true,
+"typescript.format.enable": false,
+"typescript.implementationsCodeLens.enabled": true,
+"typescript.referencesCodeLens.showOnAllFunctions": true,
+"typescript.updateImportsOnFileMove.enabled": "always"
 }
