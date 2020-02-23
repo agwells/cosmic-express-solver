@@ -327,15 +327,26 @@ export class Step {
 
     // For each house/alien...
     return housesAndAliens.every((cellToCheckReachable) => {
+      // ... look at all the cells it's reachable from...
       return (
         cellToCheckReachable
-          // ... check each cell next to it ...
           .getAdjacentNavigableCells()
           // ... and see if any of them ...
-          .some((cellNextToHouse) => {
+          .some((nc) => {
             // ... are present in the same contiguous region
-            // as my position last turn.
-            return myRegion.includes(cellNextToHouse);
+            // as my position last turn,
+            if (!myRegion.includes(nc)) {
+              return false;
+            }
+            // ... and has enough space so you don't have to dead end to reach it
+            if (
+              nc
+                .getAdjacentNavigableCells()
+                .filter((ncc) => myRegion.includes(ncc)).length < 2
+            ) {
+              return false;
+            }
+            return true;
           })
       );
     });

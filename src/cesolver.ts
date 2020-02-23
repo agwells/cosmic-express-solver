@@ -143,11 +143,11 @@ if (interactiveMode) {
   } as any;
   statusBox = {
     setContent: function(content: string) {
-      if (sinceLastStatusPrint === STATUS_PRINT_INTERVAL) {
+      if (i % STATUS_PRINT_INTERVAL === 0) {
         console.log(content);
-        sinceLastStatusPrint = 0;
+        // sinceLastStatusPrint = 0;
       }
-      sinceLastStatusPrint++;
+      // sinceLastStatusPrint++;
     },
   } as any;
   instructionBox = {
@@ -176,10 +176,10 @@ function mainProgramLoop(): void {
   i++;
   if (curStep.isWin()) {
     instructionBox.setContent('Press q to exit.');
-    statusBox.setContent('Solved!');
+    statusBox.setContent(`Solved in ${i} iterations`);
     screen.render();
     if (!interactiveMode) {
-      console.log('Solved!');
+      console.log(`Solved in ${i} iterations`);
       console.log(mapDisplay.content);
     }
     return;
@@ -205,7 +205,7 @@ function mainProgramLoop(): void {
     }
     curStep = steps[steps.length - 1];
     mapDisplay.setContent(curStep.route);
-    screen.render();
+    // screen.render();
     //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
   } else {
     // Step in the first direction.
@@ -240,12 +240,11 @@ function mainProgramLoop(): void {
   }
   mapDisplay.setContent(curStep.route);
 
-  // Tell the screen to render once a second
-  // if (os.uptime() > lastRender) {
-  //   lastRender = os.uptime();
-  //   screen.render();
-  // }
-  //  screen.render();
+  //  Tell the screen to render once a second
+  if (os.uptime() > lastRender) {
+    lastRender = os.uptime();
+    screen.render();
+  }
 
   if (isGamePaused) {
     // Wait for user input to continue
