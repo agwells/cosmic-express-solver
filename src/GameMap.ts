@@ -1,6 +1,10 @@
 import fs from 'fs';
 import { Cell } from './Cell';
 import { CELLTYPE } from './constants';
+import { DirectedGraph } from 'graphology';
+// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+// @ts-ignore
+import dijkstra from 'graphology-shortest-path/dijkstra';
 
 export class GameMap {
   cellcache: Map<string, Cell>;
@@ -15,6 +19,7 @@ export class GameMap {
   houses: Cell[];
   hintCells: Cell[];
   rawmap: string;
+  graph = new DirectedGraph();
 
   /**
    *
@@ -118,6 +123,35 @@ export class GameMap {
         }
       }
     }
+
+    this.cellcache.forEach((cell, key) => {
+      if (!cell.isOutOfBounds()) {
+        this.graph.addNode(`${key},i`, { content: cell.getContent() });
+        this.graph.addNode(`${key},o`, { content: cell.getContent() });
+        this.graph.addDirectedEdgeWithKey(key, `${key},i`, `${key},o`);
+      }
+    });
+    this.graph.nodes().forEach((n) => {
+      const [x, y, io] = n.split(',');
+      if (io === 'o') {
+        console.log('output node');
+        this.cellcache
+          .get(`${x},${y}`)
+          ?.getAdjacentNavigableCells()
+          .forEach((adj) =>
+            this.graph.addDirectedEdge(n, `${adj.toString()},i`)
+          );
+      }
+    });
+
+    console.log(this.rawmap);
+    console.dir(
+      this.graph.export().nodes.map((n) => `${n.key}: ${n.attributes?.content}`)
+    );
+    console.dir(this.graph.export().edges);
+
+    console.dir(dijkstra.singleSource(this.graph, '0,0,i'));
+    process.exit(1);
   }
 
   /**

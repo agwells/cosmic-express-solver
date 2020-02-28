@@ -145,6 +145,8 @@ if (interactiveMode) {
     setContent: function(content: string) {
       if (i % STATUS_PRINT_INTERVAL === 0) {
         console.log(content);
+        console.log(mapDisplay.content);
+        console.log('');
         // sinceLastStatusPrint = 0;
       }
       // sinceLastStatusPrint++;
@@ -204,8 +206,6 @@ function mainProgramLoop(): void {
       return;
     }
     curStep = steps[steps.length - 1];
-    mapDisplay.setContent(curStep.route);
-    // screen.render();
     //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
   } else {
     // Step in the first direction.
