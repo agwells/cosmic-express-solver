@@ -224,12 +224,13 @@ export class Step {
       this.route.slice(0, stringIdx) + char + this.route.slice(stringIdx + 1);
   }
 
-  isDeadEnd(): boolean {
+  isDeadEnd(turn: number): boolean {
     return (
       this.availableDirections.length === 0 ||
+      this.cell.getContent() === CELLTYPE.EXIT ||
       this.isRedundantPath() ||
-      !this.areAllVitalCellsReachable() ||
-      this.cell.getContent() === CELLTYPE.EXIT
+      (turn % 10 === 0 && !this.areAllVitalCellsReachableSlow()) ||
+      !this.areAllVitalCellsReachableFast()
     );
   }
 
@@ -261,7 +262,100 @@ export class Step {
     );
   }
 
-  areAllVitalCellsReachable(): boolean {
+  areAllVitalCellsReachableFast(): boolean {
+    // First turn, everything will be reachable.
+    const prevStep = this.prevStep;
+
+    if (!prevStep) {
+      return true;
+    }
+
+    // Make a list of every known contiguous region on the map (initially empty)
+    const regions: Cell[][] = [];
+    // Scan every empty cell (and my location, and the exit cell) in the map
+    this.gameMap.navigableCells.forEach((cell) => {
+      // Exclude filled cells (except the currently occupied one)
+      // TODO: to work with two cars, we need to check the progress one
+      // turn back.
+      if (prevStep.filledCells.includes(cell)) {
+        return;
+      }
+
+      const adjCells = cell
+        .getAdjacentNavigableCells()
+        .filter((adjCell) => !prevStep.filledCells.includes(adjCell));
+
+      // Check whether this cell is adjacent to any cell in any of the
+      // known contiguous regions
+      const inTheseRegions = regions.filter((region) =>
+        adjCells.some((adjCell) => region.includes(adjCell))
+      );
+      switch (inTheseRegions.length) {
+        case 0:
+          {
+            // Not in any known region yet. Start a new one.
+            regions.push([cell]);
+          }
+          break;
+        case 1:
+          // In one known region. Add it to that one.
+          inTheseRegions[0].push(cell);
+          break;
+        default: // In more than one. Join them together.
+        {
+          const mergeRegion = inTheseRegions[0];
+          mergeRegion.push(cell);
+          for (let i = 1; i < inTheseRegions.length; i++) {
+            mergeRegion.splice(mergeRegion.length, 0, ...inTheseRegions[i]);
+            regions.splice(regions.indexOf(inTheseRegions[i]), 1);
+          }
+        }
+      }
+    });
+
+    const myRegion = regions.find((region) => region.includes(prevStep.cell))!;
+
+    // Find which region contains the exit cell
+    if (!myRegion.includes(this.gameMap.exitPos)) {
+      return false;
+    }
+
+    // Check that all aliens & empty houses can still be reached as well
+    // Note: to accomodate two cars, I'm checking whether the remaining
+    // aliens and empty houses from THIS TURN would have been accessible
+    // with the blockages from LAST TURN. This gives us a one-turn lag time
+    // for the trailing car to catch up.
+    // TODO: probably a better way to do that.
+    const housesAndAliens = this.aliens.concat(this.emptyHouses);
+
+    // For each house/alien...
+    return housesAndAliens.every((cellToCheckReachable) => {
+      // ... look at all the cells it's reachable from...
+      return (
+        cellToCheckReachable
+          .getAdjacentNavigableCells()
+          // ... and see if any of them ...
+          .some((nc) => {
+            // ... are present in the same contiguous region
+            // as my position last turn,
+            if (!myRegion.includes(nc)) {
+              return false;
+            }
+            // ... and has enough space so you don't have to dead end to reach it
+            if (
+              nc
+                .getAdjacentNavigableCells()
+                .filter((ncc) => myRegion.includes(ncc)).length < 2
+            ) {
+              return false;
+            }
+            return true;
+          })
+      );
+    });
+  }
+
+  areAllVitalCellsReachableSlow(): boolean {
     // First turn, everything will be reachable.
     const prevStep = this.prevStep;
 
@@ -278,17 +372,17 @@ export class Step {
     );
 
     // See if there's a path from the front car to the exit
-    if (
-      !dijkstra.bidirectional(
-        currentGraph,
-        currentGraph.target(this.cell.toString()),
-        currentGraph.source(this.gameMap.exitPos.toString())
-      )
-    ) {
-      // console.log(this.route);
-      // console.log('No path from front car to exit');
-      return false;
-    }
+    // if (
+    //   !dijkstra.bidirectional(
+    //     currentGraph,
+    //     currentGraph.target(this.cell.toString()),
+    //     currentGraph.source(this.gameMap.exitPos.toString())
+    //   )
+    // ) {
+    //   // console.log(this.route);
+    //   // console.log('No path from front car to exit');
+    //   return false;
+    // }
 
     const vitalCells = this.aliens.concat(this.emptyHouses);
     return vitalCells.every((vitalCell) =>
@@ -312,7 +406,7 @@ export class Step {
 
         // Try to find two disjoint paths between the origin node and the vital cell
         // 1. Find the shortest path tree rooted at node s
-        const shortestPathTree = dijkstra.singleSource(g, 'origin', 'weight');
+        const shortestPathTree = dijkstra.singleSource(g, 'origin');
         // Let P1 be the shortest cost path from s (origin) to t (destination)
         const p1 = shortestPathTree[dest];
         if (!p1) {
@@ -335,19 +429,6 @@ export class Step {
           const newWeight = weight - v.length + u.length;
           g.setEdgeAttribute(e, 'weight', newWeight);
         });
-        // const dot = [
-        //   'digraph p1 {',
-        //   ...g
-        //     .edges()
-        //     .map(
-        //       (e) =>
-        //         `"${g.source(e)}" -> "${g.target(
-        //           e
-        //         )}" [label="${g.getEdgeAttribute(e, 'weight')}"]`
-        //     ),
-        //   '}',
-        // ].join('\n');
-        // fs.writeFileSync('p1.dot', dot);
 
         // 3. Create a residual graph G1 by...
         for (let i = 0; i < p1.length - 1; i++) {
@@ -374,46 +455,9 @@ export class Step {
         // 4. Find the shortest path P2 in the residual graph
         const p2 = dijkstra.bidirectional(g, 'origin', dest, 'weight');
         if (!p2) {
-          // const dot = [
-          //   'digraph p2 {',
-          //   ...g
-          //     .edges()
-          //     .map(
-          //       (e) =>
-          //         `"${g.source(e)}" -> "${g.target(
-          //           e
-          //         )}" [label="${g.getEdgeAttribute(e, 'weight')}", style=${
-          //           g.getEdgeAttribute(e, 'reversed') ? 'dotted' : 'solid'
-          //         }]`
-          //     ),
-          //   '}',
-          // ].join('\n');
-          // fs.writeFileSync('p2.dot', dot);
-          // console.log(this.route);
-          // console.log(`no path car -> ${dest} -> exit`);
           return false;
         }
 
-        // 5. Discard the reversed edges of P2 from both paths.
-        // const finalGraph = new DirectedGraph();
-        // [p1, p2].forEach((p) => {
-        //   for (let i = 0; i < p.length - 1; i++) {
-        //     const source = p[i];
-        //     const target = p[i + 1];
-        //     const e = g.edge(source, target);
-        //     if (e && !g.getEdgeAttribute(e, 'reversed')) {
-        //       finalGraph.mergeNode(source);
-        //       finalGraph.mergeNode(target);
-        //       finalGraph.addDirectedEdgeWithKey(
-        //         e,
-        //         source,
-        //         target,
-        //         g.getEdgeAttributes(e)
-        //       );
-        //     }
-        //   }
-        // });
-        // console.dir(finalGraph.toJSON());
         return true;
       })
     );

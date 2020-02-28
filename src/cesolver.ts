@@ -187,7 +187,7 @@ function mainProgramLoop(): void {
     return;
   }
 
-  if (curStep.isDeadEnd()) {
+  if (curStep.isDeadEnd(i)) {
     // This one is a dead-end. Back up.
     steps.pop();
     curStep.undo();
@@ -243,10 +243,10 @@ function mainProgramLoop(): void {
   mapDisplay.setContent(curStep.route);
 
   //  Tell the screen to render once a second
-  // if (os.uptime() > lastRender) {
-  //   lastRender = os.uptime();
-  screen.render();
-  //  }
+  if (os.uptime() > lastRender) {
+    lastRender = os.uptime();
+    screen.render();
+  }
 
   if (isGamePaused) {
     // Wait for user input to continue
