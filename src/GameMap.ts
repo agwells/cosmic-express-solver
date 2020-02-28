@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Cell } from './Cell';
-import { CELLTYPE } from './constants';
+import { CELLTYPE, FACING_STRINGS } from './constants';
 import { DirectedGraph } from 'graphology';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
@@ -126,32 +126,46 @@ export class GameMap {
 
     this.cellcache.forEach((cell, key) => {
       if (!cell.isOutOfBounds()) {
-        this.graph.addNode(`${key},i`, { content: cell.getContent() });
-        this.graph.addNode(`${key},o`, { content: cell.getContent() });
-        this.graph.addDirectedEdgeWithKey(key, `${key},i`, `${key},o`);
+        this.graph.addNode(`${key};i`, {
+          content: cell.getContent(),
+          x: (cell.x - 0.1) * 10,
+          y: cell.y * -10,
+        });
+        this.graph.addNode(`${key};o`, {
+          content: cell.getContent(),
+          x: (cell.x + 0.1) * 10,
+          y: cell.y * -10,
+        });
+        this.graph.addDirectedEdgeWithKey(key, `${key};i`, `${key};o`, {
+          cell: key,
+          weight: 1,
+        });
       }
     });
     this.graph.nodes().forEach((n) => {
-      const [x, y, io] = n.split(',');
-      if (io === 'o') {
-        console.log('output node');
+      const [id, io] = n.split(';');
+      if (io === 'i') {
         this.cellcache
-          .get(`${x},${y}`)
-          ?.getAdjacentNavigableCells()
-          .forEach((adj) =>
-            this.graph.addDirectedEdge(n, `${adj.toString()},i`)
+          .get(id)
+          ?.getConnectedCells()
+          .forEach((adjCell, facing) =>
+            this.graph.addDirectedEdge(`${adjCell.toString()};o`, n, {
+              facing,
+              facingString: FACING_STRINGS.get(facing),
+              weight: 1,
+            })
           );
       }
     });
 
-    console.log(this.rawmap);
-    console.dir(
-      this.graph.export().nodes.map((n) => `${n.key}: ${n.attributes?.content}`)
-    );
-    console.dir(this.graph.export().edges);
+    // console.log(this.rawmap);
+    // console.dir(
+    //   this.graph.export().nodes.map((n) => `${n.key}: ${n.attributes?.content}`)
+    // );
+    // console.dir(this.graph.export().edges);
 
-    console.dir(dijkstra.singleSource(this.graph, '0,0,i'));
-    process.exit(1);
+    // console.dir(dijkstra.singleSource(this.graph, '0,0;i'));
+    // process.exit(1);
   }
 
   /**

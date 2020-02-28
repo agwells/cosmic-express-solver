@@ -96,6 +96,14 @@ export class Cell {
     return this.adjacentNavCellCache;
   }
 
+  getConnectedCells(): Map<Facing, Cell> {
+    return new Map(
+      Object.values(FACINGS)
+        .map((facing) => [facing, this.getNextCell(facing)] as const)
+        .filter(([, cell]) => cell.isNavigable())
+    );
+  }
+
   isOutOfBounds(): boolean {
     return this.outOfBounds;
   }

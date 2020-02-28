@@ -54,7 +54,7 @@ let instructionBox: blessed.Widgets.TextElement;
 let isGamePaused = true;
 let statusBox: blessed.Widgets.TextElement;
 let sinceLastStatusPrint = 0;
-const STATUS_PRINT_INTERVAL = 100000;
+const STATUS_PRINT_INTERVAL = 100 * 1000;
 if (interactiveMode) {
   screen = blessed.screen({
     fastCSR: true,
@@ -202,7 +202,9 @@ function mainProgramLoop(): void {
         `ERROR: After ${i} iterations, no more steps available.`
       );
       screen.render();
-      // console.error("Console Error: no more steps available. Unsolveable level?");
+      console.error(
+        'Console Error: no more steps available. Unsolveable level?'
+      );
       return;
     }
     curStep = steps[steps.length - 1];
@@ -241,10 +243,10 @@ function mainProgramLoop(): void {
   mapDisplay.setContent(curStep.route);
 
   //  Tell the screen to render once a second
-  if (os.uptime() > lastRender) {
-    lastRender = os.uptime();
-    screen.render();
-  }
+  // if (os.uptime() > lastRender) {
+  //   lastRender = os.uptime();
+  screen.render();
+  //  }
 
   if (isGamePaused) {
     // Wait for user input to continue
