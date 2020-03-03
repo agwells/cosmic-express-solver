@@ -8,7 +8,8 @@
   "scripts": {
     "format": "prettier --write cesolver.ts 'src/**/*.ts'",
     "lint": "eslint . --ext .ts",
-    "start": "tsc && ${NODE} built/cesolver.js"
+    "start": "tsc && ${NODE} built/cesolver.js",
+    "build": "tsc"
   },
   "dependencies": {
     "@types/blessed": "^0.1.17",

@@ -126,36 +126,24 @@ export class GameMap {
 
     this.cellcache.forEach((cell, key) => {
       if (!cell.isOutOfBounds()) {
-        this.graph.addNode(`${key};i`, {
+        this.graph.addNode(key, {
           content: cell.getContent(),
           x: (cell.x - 0.1) * 10,
           y: cell.y * -10,
         });
-        this.graph.addNode(`${key};o`, {
-          content: cell.getContent(),
-          x: (cell.x + 0.1) * 10,
-          y: cell.y * -10,
-        });
-        this.graph.addDirectedEdgeWithKey(key, `${key};i`, `${key};o`, {
-          cell: key,
-          weight: 1,
-        });
       }
     });
     this.graph.nodes().forEach((n) => {
-      const [id, io] = n.split(';');
-      if (io === 'i') {
-        this.cellcache
-          .get(id)
-          ?.getConnectedCells()
-          .forEach((adjCell, facing) =>
-            this.graph.addDirectedEdge(`${adjCell.toString()};o`, n, {
-              facing,
-              facingString: FACING_STRINGS.get(facing),
-              weight: 1,
-            })
-          );
-      }
+      this.cellcache
+        .get(n)
+        ?.getConnectedCells()
+        .forEach((adjCell, facing) =>
+          this.graph.addDirectedEdge(n, adjCell.toString(), {
+            facing,
+            facingString: FACING_STRINGS.get(facing),
+            weight: 1,
+          })
+        );
     });
 
     // console.log(this.rawmap);

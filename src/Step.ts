@@ -229,8 +229,9 @@ export class Step {
       this.availableDirections.length === 0 ||
       this.cell.getContent() === CELLTYPE.EXIT ||
       this.isRedundantPath() ||
-      (turn % 10 === 0 && !this.areAllVitalCellsReachableSlow()) ||
-      !this.areAllVitalCellsReachableFast()
+      !this.areAllVitalCellsReachableFast() ||
+      (this.filledCells.length % 10 === 0 &&
+        !this.areAllVitalCellsReachableSlow())
     );
   }
 
@@ -365,18 +366,14 @@ export class Step {
 
     const currentGraph = this.gameMap.graph.copy();
     // Remove edges that pass through the places we've lain our tracks
-    this.filledCells.forEach((cell) =>
-      currentGraph
-        .extremities(cell.toString())
-        .forEach((node) => currentGraph.dropNode(node))
-    );
+    this.filledCells.forEach((cell) => currentGraph.dropNode(cell.toString()));
 
     // See if there's a path from the front car to the exit
     // if (
     //   !dijkstra.bidirectional(
     //     currentGraph,
-    //     currentGraph.target(this.cell.toString()),
-    //     currentGraph.source(this.gameMap.exitPos.toString())
+    //     this.cell.toString(),
+    //     this.gameMap.exitPos.toString()
     //   )
     // ) {
     //   // console.log(this.route);
@@ -393,42 +390,26 @@ export class Step {
         // Use Suurballe's algorithm to see if there is a path from the front
         // car to the vital cell to the exit.
         const g = currentGraph.copy();
-        const dest = g.source(adjCell.toString());
+        const dest = adjCell.toString();
 
         // Add an "origin" node that connects to the front car and the exit.
         g.addNode('origin', { x: -10, y: 0 });
-        g.addDirectedEdge('origin', g.source(this.cell.toString()), {
+        g.addDirectedEdge('origin', this.cell.toString(), {
           weight: 1,
         });
-        g.addDirectedEdge('origin', g.source(this.gameMap.exitPos.toString()), {
+        g.addDirectedEdge('origin', this.gameMap.exitPos.toString(), {
           weight: 1,
         });
 
         // Try to find two disjoint paths between the origin node and the vital cell
         // 1. Find the shortest path tree rooted at node s
-        const shortestPathTree = dijkstra.singleSource(g, 'origin');
         // Let P1 be the shortest cost path from s (origin) to t (destination)
-        const p1 = shortestPathTree[dest];
+        const p1 = dijkstra.bidirectional(g, 'origin', dest);
         if (!p1) {
           //          console.log(`no path to ${dest}`);
           return false;
         }
         //        console.log(p1);
-
-        // 2. Modify the cost of each edge in the graph by replacing the cost
-        // w(u,v) of every edge (u,v) to w'(u,v) = w(u,v) - d(s,v) + d(s,u)
-        // (where d() means the distance from the origin node)
-        g.forEachEdge((e) => {
-          const [source, target] = g.extremities(e);
-          const u = shortestPathTree[source];
-          const v = shortestPathTree[target];
-          if (!u || !v) {
-            return;
-          }
-          const weight = g.getEdgeAttribute(e, 'weight');
-          const newWeight = weight - v.length + u.length;
-          g.setEdgeAttribute(e, 'weight', newWeight);
-        });
 
         // 3. Create a residual graph G1 by...
         for (let i = 0; i < p1.length - 1; i++) {
@@ -443,13 +424,12 @@ export class Step {
           // ... and reverse the direction of the zero-length edges along path P1
           const e = g.edge(source, target)!;
           const attributes = g.getEdgeAttributes(e);
-          if (attributes.weight === 0) {
-            g.dropEdge(e);
-            g.addDirectedEdgeWithKey(e, target, source, {
-              ...attributes,
-              reversed: true,
-            });
-          }
+          g.dropEdge(e);
+          g.addDirectedEdgeWithKey(e, target, source, {
+            ...attributes,
+            weight: 0,
+            reversed: true,
+          });
         }
 
         // 4. Find the shortest path P2 in the residual graph
