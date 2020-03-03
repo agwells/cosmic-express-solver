@@ -96,14 +96,6 @@ export class Cell {
     return this.adjacentNavCellCache;
   }
 
-  getConnectedCells(): Map<Facing, Cell> {
-    return new Map(
-      Object.values(FACINGS)
-        .map((facing) => [facing, this.getNextCell(facing)] as const)
-        .filter(([, cell]) => cell.isNavigable())
-    );
-  }
-
   isOutOfBounds(): boolean {
     return this.outOfBounds;
   }
@@ -113,10 +105,10 @@ export class Cell {
       return false;
     }
     switch (this.getContent()) {
-      case CELLTYPE.EMPTY:
-      case CELLTYPE.CROSSING:
-      case CELLTYPE.EXIT:
+      // case CELLTYPE.CROSSING:
       case CELLTYPE.WARP:
+      case CELLTYPE.EMPTY:
+      case CELLTYPE.EXIT:
       case CELLTYPE.FRONT_CAR:
         return true;
       default:

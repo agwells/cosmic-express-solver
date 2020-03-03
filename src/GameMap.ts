@@ -1,10 +1,8 @@
 import fs from 'fs';
 import { Cell } from './Cell';
-import { CELLTYPE, FACING_STRINGS } from './constants';
-import { DirectedGraph } from 'graphology';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore
-import dijkstra from 'graphology-shortest-path/dijkstra';
+import { CELLTYPE } from './constants';
+import createGraph from 'ngraph.graph';
+import { MyNodeData } from 'graph-util';
 
 export class GameMap {
   cellcache: Map<string, Cell>;
@@ -19,7 +17,7 @@ export class GameMap {
   houses: Cell[];
   hintCells: Cell[];
   rawmap: string;
-  graph = new DirectedGraph();
+  graph = createGraph<MyNodeData>();
 
   /**
    *
@@ -125,24 +123,16 @@ export class GameMap {
     }
 
     this.cellcache.forEach((cell, key) => {
-      if (!cell.isOutOfBounds()) {
+      if (cell.isNavigable()) {
         this.graph.addNode(key, {
-          content: cell.getContent(),
+          content: cell.getContent() || undefined,
           x: (cell.x - 0.1) * 10,
           y: cell.y * -10,
         });
+        cell
+          .getAdjacentNavigableCells()
+          .forEach((adjCell) => this.graph.addLink(key, adjCell.toString()));
       }
-    });
-    this.graph.nodes().forEach((n) => {
-      this.cellcache
-        .get(n)
-        ?.getConnectedCells()
-        .forEach((adjCell, facing) =>
-          this.graph.addDirectedEdge(n, adjCell.toString(), {
-            facing,
-            facingString: FACING_STRINGS.get(facing),
-          })
-        );
     });
 
     // console.log(this.rawmap);

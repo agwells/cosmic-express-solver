@@ -187,7 +187,7 @@ function mainProgramLoop(): void {
     return;
   }
 
-  if (curStep.isDeadEnd(i)) {
+  if (curStep.isDeadEnd()) {
     // This one is a dead-end. Back up.
     steps.pop();
     curStep.undo();

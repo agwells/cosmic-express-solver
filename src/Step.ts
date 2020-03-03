@@ -2,9 +2,10 @@ import { CELLTYPE, FACINGS, Facing, Alien, ALL_FACINGS } from './constants';
 import { Car } from './Car';
 import { GameMap } from 'GameMap';
 import { Cell } from 'Cell';
-import unweighted from 'graphology-shortest-path/unweighted';
+import { aGreedy, PathFinderOptions } from 'ngraph.path';
 // @ts-ignore
 //import fs from 'fs';
+import { copyGraph, manhattanDistance, MyNodeData } from './graph-util';
 
 export class Step {
   gameMap: GameMap;
@@ -224,14 +225,15 @@ export class Step {
       this.route.slice(0, stringIdx) + char + this.route.slice(stringIdx + 1);
   }
 
-  isDeadEnd(turn: number): boolean {
+  isDeadEnd(): boolean {
     return (
       this.availableDirections.length === 0 ||
       this.cell.getContent() === CELLTYPE.EXIT ||
       this.isRedundantPath() ||
-      !this.areAllVitalCellsReachableFast() ||
-      (this.filledCells.length % 10 === 0 &&
-        !this.areAllVitalCellsReachableSlow())
+      // !this.areAllVitalCellsReachableFast() ||
+      // (this.filledCells.length % 10 === 0 &&
+      !this.areAllVitalCellsReachableSlow()
+      //)
     );
   }
 
@@ -364,10 +366,6 @@ export class Step {
       return true;
     }
 
-    const currentGraph = this.gameMap.graph.copy();
-    // Remove edges that pass through the places we've lain our tracks
-    this.filledCells.forEach((cell) => currentGraph.dropNode(cell.toString()));
-
     // See if there's a path from the front car to the exit
     // if (
     //   !dijkstra.bidirectional(
@@ -381,60 +379,77 @@ export class Step {
     //   return false;
     // }
 
+    const currentGraph = copyGraph(this.gameMap.graph);
+    currentGraph.beginUpdate();
+    this.filledCells.forEach((cell) =>
+      currentGraph.removeNode(cell.toString())
+    );
+    currentGraph.endUpdate();
+
+    const pathOptions: PathFinderOptions<MyNodeData, any> = {
+      oriented: true,
+      heuristic: this.gameMap.warps.length
+        ? (from, to): number =>
+            Math.min(
+              manhattanDistance(from.data, to.data),
+              manhattanDistance(this.gameMap.warps[0], to.data),
+              manhattanDistance(this.gameMap.warps[1], to.data)
+            )
+        : (from, to): number => manhattanDistance(from.data, to.data),
+    };
+
+    const pathInCurrentGraph = aGreedy(currentGraph, pathOptions);
+    const frontCar = this.cell.toString();
+    const exit = this.gameMap.exitPos.toString();
+
     const vitalCells = this.aliens.concat(this.emptyHouses);
     return vitalCells.every((vitalCell) =>
       vitalCell.getAdjacentNavigableCells().some((adjCell) => {
         if (this.filledCells.includes(adjCell)) {
           return false;
         }
-        // Use Suurballe's algorithm to see if there is a path from the front
-        // car to the vital cell to the exit.
-        const g = currentGraph.copy();
+
         const dest = adjCell.toString();
 
-        // Add an "origin" node that connects to the front car and the exit.
-        g.addNode('origin', { x: -10, y: 0 });
-        g.addDirectedEdge('origin', this.cell.toString());
-        g.addDirectedEdge('origin', this.gameMap.exitPos.toString());
+        // Try to find two disjoint paths from the current car to the vital cell,
+        // and from the vital cell to the exit, using a watered down version of
+        // Surballe's algorithm.
 
-        // Try to find two disjoint paths between the origin node and the vital cell
-        // 1. Find the shortest path tree rooted at node s
-        // Let P1 be the shortest cost path from s (origin) to t (destination)
-        const p1 = unweighted.bidirectional(g, 'origin', dest);
-        if (!p1) {
-          //          console.log(`no path to ${dest}`);
+        // 1. Find a path from front car to vital cell
+        const p1 = pathInCurrentGraph.find(frontCar, dest);
+        if (!p1?.length) {
+          // No path from car to cell
           return false;
         }
-        //        console.log(p1);
 
-        // 3. Create a residual graph G1 by...
+        // Now, try to find a disjoint path from the cell to the exit. We do this
+        // by reversing the direction of all the links that we traversed in the
+        // first path. If we can then still find a path from cell to exit, we
+        // know that there are two disjoint paths.
+
+        // 2. Create a residual graph G1 by...
+        const g1 = copyGraph(currentGraph);
+
+        g1.beginUpdate();
+        // Add a fake "origin" cell connected to both the car and the exit
         for (let i = 0; i < p1.length - 1; i++) {
-          const source = p1[i];
-          const target = p1[i + 1];
+          const source = p1[i].id;
+          const target = p1[i + 1].id;
           // ... removing the edges of G on the shortest path P1 that are
           // directed towards s
-          if (g.hasEdge(target, source)) {
-            g.dropEdge(target, source);
+          const forwardLink = g1.getLink(source, target);
+          if (forwardLink) {
+            g1.removeLink(forwardLink);
           }
-
           // ... and reverse the direction of the zero-length edges along path P1
-          const e = g.edge(source, target)!;
-          //const attributes = g.getEdgeAttributes(e);
-          g.dropEdge(e);
-          g.addDirectedEdgeWithKey(
-            e,
-            target,
-            source
-            //   {
-            //   ...attributes,
-            //   reversed: true,
-            // }
-          );
+          g1.addLink(target, source);
         }
+        g1.endUpdate();
 
-        // 4. Find the shortest path P2 in the residual graph
-        const p2 = unweighted.bidirectional(g, 'origin', dest);
-        if (!p2) {
+        // 4. Find the shortest path P2 in the residual graph from the exit to
+        // the vital cell
+        const p2 = aGreedy(g1, pathOptions).find(exit, dest);
+        if (!p2?.length) {
           return false;
         }
 
