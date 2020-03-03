@@ -141,7 +141,6 @@ export class GameMap {
           this.graph.addDirectedEdge(n, adjCell.toString(), {
             facing,
             facingString: FACING_STRINGS.get(facing),
-            weight: 1,
           })
         );
     });

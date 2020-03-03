@@ -2,7 +2,7 @@ import { CELLTYPE, FACINGS, Facing, Alien, ALL_FACINGS } from './constants';
 import { Car } from './Car';
 import { GameMap } from 'GameMap';
 import { Cell } from 'Cell';
-import dijkstra from 'graphology-shortest-path/dijkstra';
+import unweighted from 'graphology-shortest-path/unweighted';
 // @ts-ignore
 //import fs from 'fs';
 
@@ -394,17 +394,13 @@ export class Step {
 
         // Add an "origin" node that connects to the front car and the exit.
         g.addNode('origin', { x: -10, y: 0 });
-        g.addDirectedEdge('origin', this.cell.toString(), {
-          weight: 1,
-        });
-        g.addDirectedEdge('origin', this.gameMap.exitPos.toString(), {
-          weight: 1,
-        });
+        g.addDirectedEdge('origin', this.cell.toString());
+        g.addDirectedEdge('origin', this.gameMap.exitPos.toString());
 
         // Try to find two disjoint paths between the origin node and the vital cell
         // 1. Find the shortest path tree rooted at node s
         // Let P1 be the shortest cost path from s (origin) to t (destination)
-        const p1 = dijkstra.bidirectional(g, 'origin', dest);
+        const p1 = unweighted.bidirectional(g, 'origin', dest);
         if (!p1) {
           //          console.log(`no path to ${dest}`);
           return false;
@@ -423,17 +419,21 @@ export class Step {
 
           // ... and reverse the direction of the zero-length edges along path P1
           const e = g.edge(source, target)!;
-          const attributes = g.getEdgeAttributes(e);
+          //const attributes = g.getEdgeAttributes(e);
           g.dropEdge(e);
-          g.addDirectedEdgeWithKey(e, target, source, {
-            ...attributes,
-            weight: 0,
-            reversed: true,
-          });
+          g.addDirectedEdgeWithKey(
+            e,
+            target,
+            source
+            //   {
+            //   ...attributes,
+            //   reversed: true,
+            // }
+          );
         }
 
         // 4. Find the shortest path P2 in the residual graph
-        const p2 = dijkstra.bidirectional(g, 'origin', dest, 'weight');
+        const p2 = unweighted.bidirectional(g, 'origin', dest);
         if (!p2) {
           return false;
         }

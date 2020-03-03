@@ -1,6 +1,6 @@
 declare module 'graphology-shortest-path/dijkstra' {
   import { AbstractGraph, NodeKey } from 'graphology-types';
-  export interface Dijkstra {
+  interface Dijkstra {
     bidirectional: (
       graph: AbstractGraph,
       source: NodeKey,
@@ -16,4 +16,18 @@ declare module 'graphology-shortest-path/dijkstra' {
 
   const dijkstra: Dijkstra;
   export default dijkstra;
+}
+
+declare module 'graphology-shortest-path/unweighted' {
+  import { AbstractGraph, NodeKey } from 'graphology-types';
+  interface Unweighted {
+    bidirectional: (
+      graph: AbstractGraph,
+      source: NodeKey,
+      target: NodeKey
+    ) => NodeKey[] | null;
+  }
+
+  const unweighted: Unweighted;
+  export default unweighted;
 }
