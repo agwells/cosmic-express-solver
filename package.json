@@ -14,8 +14,8 @@
   "dependencies": {
     "@types/blessed": "^0.1.17",
     "blessed": "^0.1.81",
-    "graphology": "^0.16.0",
-    "graphology-shortest-path": "^1.0.4",
+    "ngraph.graph": "^19.0.3",
+    "ngraph.path": "^1.3.1",
     "typescript": "^3.8.2"
   },
   "devDependencies": {
