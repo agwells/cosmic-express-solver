@@ -7,6 +7,8 @@ import timers from 'timers';
 import { FACINGS, CELLTYPE } from './constants';
 import { GameMap } from './GameMap';
 import { Step } from './Step';
+import findLastIndex from 'lodash.findlastindex';
+import { bisector as d3Bisector } from 'd3-array';
 
 /**
  * Process command-line flags
@@ -42,6 +44,7 @@ const steps = [
 ];
 
 let curStep = steps[0];
+curStep.isDeadEnd = false;
 let i = 0;
 let lastRender = os.uptime();
 
@@ -53,6 +56,7 @@ let mapDisplay: blessed.Widgets.BoxElement;
 let instructionBox: blessed.Widgets.TextElement;
 let isGamePaused = true;
 let statusBox: blessed.Widgets.TextElement;
+let statusBox2: blessed.Widgets.TextElement;
 let sinceLastStatusPrint = 0;
 const STATUS_PRINT_INTERVAL = 100 * 1000;
 if (interactiveMode) {
@@ -78,9 +82,15 @@ if (interactiveMode) {
   screen.append(statusBox);
   instructionBox = blessed.text({
     top: +mapDisplay.height + +statusBox.height,
-    content: 'Press SPACE to start.\nPress . to step.',
+    height: 1,
+    content: 'Press SPACE to start. Press . to step.',
   });
   screen.append(instructionBox);
+  statusBox2 = blessed.text({
+    top: +mapDisplay.height + +statusBox.height + +instructionBox.height,
+    content: 'status box 2',
+  });
+  screen.append(statusBox2);
 
   // Quit on Escape, q, or Control-C.
   screen.key(['escape', 'q', 'C-c'], function() {
@@ -94,7 +104,7 @@ if (interactiveMode) {
       isGamePaused = false;
       timers.setImmediate(mainProgramLoop);
     } else {
-      instructionBox.setContent('Press SPACE to start.\nPress . to step.');
+      instructionBox.setContent('Press SPACE to start. Press . to step.');
       statusBox.setContent('PAUSED');
       isGamePaused = true;
     }
@@ -165,6 +175,10 @@ if (!interactiveMode) {
   timers.setImmediate(mainProgramLoop);
 }
 
+let slowCheckInterval = 100;
+const MAX_SLOW_CHECK_INTERVAL = 1000;
+const MIN_SLOW_CHECK_INTERVAL = 1000;
+
 /**
  * The main event loop of the solver program.
  *
@@ -187,7 +201,7 @@ function mainProgramLoop(): void {
     return;
   }
 
-  if (curStep.isDeadEnd()) {
+  if (curStep.isDeadEndFast()) {
     // This one is a dead-end. Back up.
     steps.pop();
     curStep.undo();
@@ -210,35 +224,112 @@ function mainProgramLoop(): void {
     curStep = steps[steps.length - 1];
     //        console.log(`Dead end. Backing up to ${curStep.cell.toString()}`);
   } else {
-    // Step in the first direction.
-    // Remove that direction from the list of available directions so we
-    // don't have to try it again.
-    const moveThisWay = curStep.availableDirections.shift()!;
-    const nextPos = curStep.cell.getNextCell(moveThisWay);
-    //        console.log(`Moving ${FACING_STRINGS.get(moveThisWay)} to ${nextPos}`);
-    const nextStep = new Step(gameMap, nextPos, curStep, moveThisWay);
-    steps.push(nextStep);
+    let backCount = 0;
+    if (i % slowCheckInterval === 0) {
+      statusBox2.setContent(
+        'Slow dead-end check at interval ' + slowCheckInterval
+      );
+      if (curStep.isDeadEndSlow()) {
+        const lastKnownGood = findLastIndex(
+          steps,
+          (s) => s.isDeadEnd === false
+        );
+        if (lastKnownGood === -1) {
+          if (!interactiveMode) {
+            sinceLastStatusPrint = STATUS_PRINT_INTERVAL;
+          }
+          statusBox.setContent(
+            `ERROR: After ${i} iterations, no more steps available.`
+          );
+          screen.render();
+          console.error(
+            'Console Error: no more steps available. Unsolveable level?'
+          );
+          return;
+        }
 
-    // Update the curses map
-    let arrow: CELLTYPE;
-    switch (moveThisWay) {
-      case FACINGS.NORTH:
-        arrow = CELLTYPE.ROUTE_NORTH;
-        break;
-      case FACINGS.EAST:
-        arrow = CELLTYPE.ROUTE_EAST;
-        break;
-      case FACINGS.SOUTH:
-        arrow = CELLTYPE.ROUTE_SOUTH;
-        break;
-      default:
-      case FACINGS.WEST:
-        arrow = CELLTYPE.ROUTE_WEST;
-        break;
+        const bisector = d3Bisector<Step, number>((step) =>
+          step.isDeadEndSlow() ? 1 : 0
+        );
+        const backTo = bisector.right(
+          steps,
+          0.5,
+          lastKnownGood,
+          steps.length - 1
+        );
+        backCount = steps.length - backTo - 1;
+        steps.splice(backTo + 1);
+        curStep = steps[backTo];
+      }
+      // screen.render();
+      // while (curStep.isDeadEndSlow()) {
+      //   backCount++;
+      //   steps.pop();
+      //   curStep.undo();
+      //   if (steps.length == 0) {
+      //     if (!interactiveMode) {
+      //       sinceLastStatusPrint = STATUS_PRINT_INTERVAL;
+      //     }
+      //     statusBox.setContent(
+      //       `ERROR: After ${i} iterations, no more steps available.`
+      //     );
+      //     screen.render();
+      //     console.error(
+      //       'Console Error: no more steps available. Unsolveable level?'
+      //     );
+      //     return;
+      //   }
+      //   curStep = steps[steps.length - 1];
+      // }
+      if (backCount === 0) {
+        slowCheckInterval = Math.min(
+          MAX_SLOW_CHECK_INTERVAL,
+          Math.ceil(slowCheckInterval * 1.25)
+        );
+        // screen.render();
+      } else {
+        slowCheckInterval = Math.max(MIN_SLOW_CHECK_INTERVAL, backCount);
+        // statusBox2.setContent(
+        //   `${i} : ${curStep.cell.toString()} : Slow dead end ${backCount} steps (next interval ${slowCheckInterval})`
+        // );
+        // screen.render();
+      }
+      statusBox2.setContent(`${i} ${slowCheckInterval}`);
     }
-    nextStep.drawOnRoute(curStep.cell, arrow);
-    statusBox.setContent(`${i} : ${curStep.cell.toString()}`);
-    curStep = nextStep;
+    if (backCount === 0) {
+      // Step in the first direction.
+      // Remove that direction from the list of available directions so we
+      // don't have to try it again.
+      const moveThisWay = curStep.availableDirections.shift()!;
+      const nextPos = curStep.cell.getNextCell(moveThisWay);
+      //        console.log(`Moving ${FACING_STRINGS.get(moveThisWay)} to ${nextPos}`);
+      const nextStep = new Step(gameMap, nextPos, curStep, moveThisWay);
+      steps.push(nextStep);
+
+      // Update the curses map
+      let arrow: CELLTYPE;
+      switch (moveThisWay) {
+        case FACINGS.NORTH:
+          arrow = CELLTYPE.ROUTE_NORTH;
+          break;
+        case FACINGS.EAST:
+          arrow = CELLTYPE.ROUTE_EAST;
+          break;
+        case FACINGS.SOUTH:
+          arrow = CELLTYPE.ROUTE_SOUTH;
+          break;
+        default:
+        case FACINGS.WEST:
+          arrow = CELLTYPE.ROUTE_WEST;
+          break;
+      }
+      nextStep.drawOnRoute(curStep.cell, arrow);
+      statusBox.setContent(
+        `${i} ${slowCheckInterval} ${i %
+          slowCheckInterval}: ${curStep.cell.toString()}`
+      );
+      curStep = nextStep;
+    }
   }
   mapDisplay.setContent(curStep.route);
 

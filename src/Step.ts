@@ -3,8 +3,6 @@ import { Car } from './Car';
 import { GameMap } from 'GameMap';
 import { Cell } from 'Cell';
 import { aGreedy, PathFinderOptions } from 'ngraph.path';
-// @ts-ignore
-//import fs from 'fs';
 import { copyGraph, manhattanDistance, MyNodeData } from './graph-util';
 
 export class Step {
@@ -20,6 +18,7 @@ export class Step {
   stepsSinceLastPassengerChange: Step[];
   availableDirections: Facing[];
   isPassengerChange: boolean;
+  isDeadEnd: boolean | undefined = undefined;
 
   constructor(
     gameMap: GameMap,
@@ -225,16 +224,20 @@ export class Step {
       this.route.slice(0, stringIdx) + char + this.route.slice(stringIdx + 1);
   }
 
-  isDeadEnd(): boolean {
+  isDeadEndFast(): boolean {
     return (
       this.availableDirections.length === 0 ||
       this.cell.getContent() === CELLTYPE.EXIT ||
       this.isRedundantPath() ||
-      // !this.areAllVitalCellsReachableFast() ||
-      // (this.filledCells.length % 10 === 0 &&
-      !this.areAllVitalCellsReachableSlow()
-      //)
+      !this.areAllVitalCellsReachableFast()
     );
+  }
+
+  isDeadEndSlow(): boolean {
+    if (this.isDeadEnd === undefined) {
+      this.isDeadEnd = !this.areAllVitalCellsReachableSlow();
+    }
+    return this.isDeadEnd!;
   }
 
   isWin(): boolean {
